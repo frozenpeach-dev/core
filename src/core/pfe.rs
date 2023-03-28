@@ -6,19 +6,19 @@ use super::{message_type::PacketType, packet_context::PacketContext, state::Pack
 
 
 
-struct PacketForwardingEngine {
+struct PacketForwardingEngine<T: PacketType, U: PacketType>{
 
-    registry: HookRegistry,
+    registry: HookRegistry<T, U>,
 
 }
 
-impl PacketForwardingEngine {
+impl<T: PacketType, U: PacketType>PacketForwardingEngine<T, U> {
 
-    pub fn new(registry: HookRegistry) -> Self{
+    pub fn new(registry: HookRegistry<T, U>) -> Self{
         Self{ registry }
     }
 
-    pub async fn run_lifetime<T: PacketType, U: PacketType>(&self, mut packet: PacketContext<T, U>) {
+    pub async fn run_lifetime(&self, mut packet: PacketContext<T, U>) {
 
         for state in all::<PacketState>() {
 

@@ -22,6 +22,10 @@ impl<T: PacketType, U:PacketType> PacketContext<T, U> {
         self.state = new_state;
     }
 
+    pub fn state(&self) -> PacketState {
+        self.state
+    }
+
 }
 
 
