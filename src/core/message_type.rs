@@ -365,10 +365,6 @@ impl DhcpV4Packet {
         self.htype = htype;
     }
 
-
-
-    
-
 }
 
 impl PacketType for DhcpV4Packet {
