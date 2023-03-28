@@ -25,3 +25,5 @@ features = [
      "fast-rng",          
      "macro-diagnostics", 
 ]
+tokio = { version = "1", features = ["full"] }
+log = "0"
