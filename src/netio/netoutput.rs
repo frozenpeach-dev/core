@@ -7,8 +7,9 @@ pub struct NetSender {
 }
 
 impl NetSender {
-    // A terme la data devra être un packet qui implémentera pack() pour avoir la donnée brute.
+    // Packet will need to implement pack() that will return raw data to encapsulate in udp datagram
     pub async fn send(&self, data : Vec<u8>, target : String){
+        //Sends data to target
         let s = self.socket.clone();
         tokio::spawn(async move {
             s.send_to(&data, target).await.unwrap();
@@ -17,6 +18,7 @@ impl NetSender {
     }
 
     pub async fn new(address : String) -> io::Result<NetSender>{
+        //Creates UdpSocket
         match UdpSocket::bind(address).await{
             Ok(s) => {
                 Ok(Self{socket: Arc::new(s)})

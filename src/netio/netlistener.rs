@@ -2,6 +2,9 @@
 use std::io;
 use tokio::net::UdpSocket;
 use tokio;
+
+const BUFFER: usize = 342*8usize;
+//Buffer size
 pub struct NetListener {
     socket : UdpSocket
 }
@@ -10,10 +13,9 @@ impl NetListener {
     pub async fn start_listening(self){
         println!("Starting listening");
         loop {
-            let mut buf = [0;16384];
+            let mut buf = [0;BUFFER];
             let _len = self.socket.recv(&mut buf).await.unwrap();
-            dbg!(buf);
-        };  
+        };
     }
 
     pub async fn new(address : String) -> io::Result<NetListener>{
@@ -24,7 +26,6 @@ impl NetListener {
             Err(e) => Err(e)
         }
     }
-
 }
 
 
