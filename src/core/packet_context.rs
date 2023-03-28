@@ -56,22 +56,7 @@ pub struct Option<T> {
     pub value : T
 }
 
-pub fn parse_options(mut data : Vec<u8>) -> Vec<Option<Vec<u8>>>{
-    let mut result = Vec::new();
-    while data.len() > 0 {
-        let code = data.remove(0);
-        if code == 0u8 {
-            continue;
-        }
-        if code == 255 {
-            break;
-        }
-        let len = data.remove(0) as usize;
-        let value = data.drain(0..len).as_slice().to_owned();
-        result.push(Option{code, value});
-    }
-    result
-}
+
 
 #[cfg(test)]
 

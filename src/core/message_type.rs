@@ -13,10 +13,11 @@ pub trait PacketType: AsRef<[u8]> {
 
 }
 
+#[derive(Clone)]
 pub enum DhcpOption {
 
-    Pad(Vec<u8>),
-    End(Vec<u8>),
+    Pad,
+    End,
     SubnetMask(Vec<u8>),
     TimeOffset(Vec<u8>),
     RouterOption(Vec<u8>),
@@ -99,7 +100,7 @@ impl From<DhcpOption> for u8 {
     fn from(option: DhcpOption) -> Self {
         use DhcpOption::*;
         match option {
-            Pad(_) => 0,
+            Pad => 0,
             SubnetMask(_) => 1,
             TimeOffset(_) => 2,
             RouterOption(_) => 3,
@@ -174,7 +175,7 @@ impl From<DhcpOption> for u8 {
             DefaultIRCServer(_) => 74,
             StreetTalkServer(_) => 75,
             STDAServer(_) => 76,
-            End(_) => 255,
+            End => 255,
 
         }
     }
@@ -191,7 +192,7 @@ impl DhcpOption {
     fn from(n: u8, bytes: Vec<u8>) -> Self {
         use DhcpOption::*;
         match n {
-            0 => Pad(bytes),
+            0 => Pad,
             1 => SubnetMask(bytes),
             2 => TimeOffset(bytes),
             3 => RouterOption(bytes),
@@ -266,6 +267,8 @@ impl DhcpOption {
             74 => DefaultIRCServer(bytes),
             75 => StreetTalkServer(bytes),
             76 => STDAServer(bytes),
+            255 => End,
+            _ => End
         }
     }
 
@@ -273,7 +276,7 @@ impl DhcpOption {
 
 pub struct DhcpOptions {
 
-    options: HashMap<u8, DhcpOption>
+    pub options: HashMap<u8, DhcpOption>
 
 }
 
@@ -284,7 +287,7 @@ impl DhcpOptions {
     } 
 
     pub fn add(&mut self, option: DhcpOption) {
-        self.options.insert(option.try_into().unwrap(), option);
+        self.options.insert(option.clone().try_into().unwrap(), option);
     }
 
     pub fn is_defined(&self, option: DhcpOption) -> bool {
@@ -293,33 +296,44 @@ impl DhcpOptions {
 
 }
 
-impl Iterator for DhcpOptions {
-    type Item = (u8, DhcpOption);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.options.into_iter().next()
-    }
-}
-
 impl From<DhcpOptions> for Vec<u8> {
     fn from(value: DhcpOptions) -> Self {
 
-        let buf: Vec<u8> = Vec::new();
+        let mut buf: Vec<u8> = Vec::new();
 
-        for option in value.into_iter() {
-            let opt_len: u8 = (Vec::from(option.1)).len() as u8;
-            let opt_buf = Vec::new();
+        for option in value.options {
+            let opt_vec = Vec::from(option.1);
+            let opt_len: u8 = opt_vec.len() as u8;
+            let mut opt_buf = Vec::new();
 
             opt_buf.push(option.0);
             opt_buf.push(opt_len);
-            opt_buf.append(&mut Vec::from(option.1));
+            opt_buf.append(&mut Vec::from(opt_vec));
 
             buf.append(&mut opt_buf);
 
         }
-
         buf
+    }
+}
 
+impl From<Vec<u8>> for DhcpOptions {
+     fn from(mut data : Vec<u8>) -> Self{
+
+        let mut options = DhcpOptions{ options: HashMap::new() };
+        while data.len() > 0 {
+            let code = data.remove(0);
+            if code == 0u8 {
+                continue;
+            }
+            if code == 255 {
+                break;
+            }
+            let len = data.remove(0) as usize;
+            let value = data.drain(0..len).as_slice().to_owned();
+            options.add(DhcpOption::from(code, value));
+        }
+        options
     }
 }
 
@@ -338,7 +352,7 @@ pub struct DhcpV4Packet {
     chadd : HardwareAddress,
     sname : String,
     file : String,
-    options : Vec<DhcpOption>
+    options : DhcpOptions
 }
 
 impl DhcpV4Packet {
@@ -347,7 +361,7 @@ impl DhcpV4Packet {
         &self.htype
     } 
 
-    pub fn set_htype(&self, htype: u8) {
+    pub fn set_htype(&mut self, htype: u8) {
         self.htype = htype;
     }
 
@@ -389,7 +403,7 @@ impl PacketType for DhcpV4Packet {
         let next = raw.drain(0..128).as_slice().to_vec();
         let file = String::from_utf8_lossy(&next).to_string();
         let _magic_cookie = raw.drain(0..4).as_slice().to_vec();
-        let options = parse_options(raw.to_owned());
+        let options = DhcpOptions::from(raw); 
         Self { op, htype, hlen, hops, xid, secs, flags, ciaddr, yiaddr, siaddr, giaddr, chadd, sname, file, options }
 
     }
