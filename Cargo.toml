@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 mac_address = "0"
+chrono = "0.4.24"
+itertools = "0.10.5"

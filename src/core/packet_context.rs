@@ -1,88 +1,27 @@
-use std::{time::Duration, net::Ipv4Addr};
+use std::{time::Duration, net::{Ipv4Addr, SocketAddr}};
+use chrono::{DateTime, Utc};
 use mac_address::MacAddress;
 
-use super::state;
+use super::{state::{self, PacketState}, message_type::PacketType};
 
-pub struct Packet<T> {
-    pub state : state::PacketState,
-    pub packet : T
-}
+pub struct PacketContext<T : PacketType, U: PacketType> {
 
-pub trait PacketType {
+    source_addr : SocketAddr,
 
-}
+    time: DateTime<Utc>,
 
-impl PacketType for Packet<DhcpPacket>{
-}   
+    id: usize,
 
+    state: PacketState,
 
-pub struct PacketContext<T : PacketType, U> {
-    pub input_packet : T,
+    input_packet : T,
+
     pub output_packet : U
+
 }
 
 
-pub struct DhcpPacket {
-    pub htype : u8,
-    pub hlen : u8,
-    pub hops : u8,
-    pub xid : u32,
-    pub sec : Duration,
-    pub flags : [u8; 2],
-    pub ciaddr : Ipv4Addr,
-    pub yiaddr : Ipv4Addr,
-    pub siaddr : Ipv4Addr,
-    pub giaddr : Ipv4Addr,
-    pub chadd : HardwareAddress,
-    pub sname : String,
-    pub file : String,
-    pub options : Vec<Option<Vec<u8>>>
-}
 
-
-impl DhcpPacket {
-    pub fn from_raw(mut raw : Vec<u8>) -> Self{
-        let _mtype = raw.remove(0);
-        let htype = raw.remove(0);
-        let hlen = raw.remove(0);
-        let hops = raw.remove(0);
-        let next:[u8; 4] = raw.drain(0..4).as_slice().to_owned().try_into().unwrap();
-        let xid = u32::from_le_bytes(next);
-        let next: [u8; 2] = raw.drain(0..2).as_slice().to_owned().try_into().unwrap();
-        let sec = Duration::from_secs(u16::from_le_bytes(next) as u64);
-        let flags = raw.drain(0..2).as_slice().to_owned().try_into().unwrap();
-        let a = raw.remove(0);
-        let b = raw.remove(0);
-        let c = raw.remove(0);
-        let d = raw.remove(0);
-        let ciaddr = Ipv4Addr::new(a, b, c, d);
-        let a = raw.remove(0);
-        let b = raw.remove(0);
-        let c = raw.remove(0);
-        let d = raw.remove(0);
-        let yiaddr = Ipv4Addr::new(a, b, c, d);
-        let a = raw.remove(0);
-        let b = raw.remove(0);
-        let c = raw.remove(0);
-        let d = raw.remove(0);
-        let siaddr = Ipv4Addr::new(a, b, c, d);
-        let a = raw.remove(0);
-        let b = raw.remove(0);
-        let c = raw.remove(0);
-        let d = raw.remove(0);
-        let giaddr = Ipv4Addr::new(a, b, c, d);
-        let next: [u8; 16] = raw.drain(0..16).as_slice().to_owned().try_into().unwrap();
-        let chadd = HardwareAddress::new(next);
-        let next = raw.drain(0..64).as_slice().to_vec();
-        let sname = String::from_utf8_lossy(&next).to_string();
-        let next = raw.drain(0..128).as_slice().to_vec();
-        let file = String::from_utf8_lossy(&next).to_string();
-        let _magic_cookie = raw.drain(0..4).as_slice().to_vec();
-        let options = parse_options(raw.to_owned());
-        Self { htype: htype, hlen: hlen, hops: hops, xid: xid, sec: sec, flags: flags, ciaddr: ciaddr, yiaddr: yiaddr, siaddr: siaddr, giaddr: giaddr, chadd: chadd, sname: sname, file: file, options: options }
-
-    }
-}
 
 
 pub struct HardwareAddress {
@@ -138,11 +77,12 @@ pub fn parse_options(mut data : Vec<u8>) -> Vec<Option<Vec<u8>>>{
 
 
 mod packet {
-    use super::DhcpPacket;
+    use crate::core::{packet_context::PacketType, message_type::DhcpV4Packet};
+
     #[test]
     fn packet_craft(){
         let data = hex_to_bytes("02010601fb2ea0b400000000000000008ac33c830000000000000000b0be8328430e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000638253633501053604c00002013304000062dc0104fffff00003048ac3300106088ac3240a8ac3c2170f1b6f70656e7a6f6e652e63656e7472616c65737570656c65632e6672771f086f70656e7a6f6e650f63656e7472616c65737570656c656302667200c009ff00000000").unwrap();
-        let packet = DhcpPacket::from_raw(data);
+        let packet = DhcpV4Packet::from_raw_bytes(&data);
         println!("{}", packet.chadd.address);
         println!("{}", packet.yiaddr);
         dbg!("{}", packet.options);
