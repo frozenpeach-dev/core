@@ -294,6 +294,11 @@ impl DhcpOptions {
         self.options.contains_key(&(option.try_into().unwrap()))
     }
 
+    pub fn empty() -> Self {
+        let options : HashMap<u8, DhcpOption> = HashMap::new();
+        Self { options }
+    }
+
 }
 
 impl From<DhcpOptions> for Vec<u8> {
@@ -363,6 +368,10 @@ impl DhcpV4Packet {
 
     pub fn set_htype(&mut self, htype: u8) {
         self.htype = htype;
+    }
+
+    pub fn empty() -> Self{
+        Self {op: 0u8, htype: 0u8, hlen: 0, hops: 0, xid: 0, secs: NaiveTime::from_hms_opt(0,0,0).unwrap(), flags: [0u8; 2], ciaddr: Ipv4Addr::UNSPECIFIED, yiaddr: Ipv4Addr::UNSPECIFIED, siaddr: Ipv4Addr::UNSPECIFIED, giaddr: Ipv4Addr::UNSPECIFIED, chadd: HardwareAddress::new([0;16]), sname: String::new(), file: String::new(), options: DhcpOptions::empty() }
     }
 
 }
