@@ -5,7 +5,8 @@ use mac_address::MacAddress;
 
 use super::{state::{self, PacketState}, message_type::PacketType};
 
-pub struct PacketContext<T : PacketType, U: PacketType> {
+#[derive(Copy, Clone)]
+pub struct PacketContext<T : PacketType + Send, U: PacketType + Send> {
 
     source_addr : SocketAddr,
     time: DateTime<Utc>,
@@ -16,21 +17,21 @@ pub struct PacketContext<T : PacketType, U: PacketType> {
 
 }
 
-impl<T: PacketType, U:PacketType> PacketContext<T, U> {
+impl<T: PacketType + Send, U:PacketType + Send> PacketContext<T, U> {
 
     pub fn set_state(&mut self, new_state: PacketState) {
         self.state = new_state;
     }
 
-    pub fn state(&self) -> PacketState {
-        self.state
+    pub fn state(&self) -> &PacketState {
+        &self.state
     }
 
 }
 
 
 // sussiest code ever written 
-impl<T: PacketType, U:PacketType> Iterator for PacketContext<T, U> {
+impl<T: PacketType + Send, U:PacketType + Send> Iterator for PacketContext<T, U> {
     type Item = Result<(), ()>;
 
     fn next(&mut self) -> std::option::Option<Self::Item> {

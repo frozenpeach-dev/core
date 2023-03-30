@@ -1,0 +1,2 @@
+
+pub struct HookError(usize);

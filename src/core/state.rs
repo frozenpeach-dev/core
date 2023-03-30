@@ -1,7 +1,7 @@
 use enum_iterator::Sequence;
 
 
-#[derive(Debug, Sequence, PartialEq, Eq, Hash)]
+#[derive(Copy, Debug, Sequence, PartialEq, Eq, Hash, Clone)]
 pub enum PacketState {
 
     Received,

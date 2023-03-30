@@ -2,31 +2,39 @@ use enum_iterator::all;
 
 use crate::hooks::hook_registry::HookRegistry;
 
-use super::{message_type::PacketType, packet_context::PacketContext, state::PacketState};
+use super::{message_type::PacketType, packet_context::PacketContext, state::PacketState, errors::HookError};
 
 
 
-struct PacketForwardingEngine<T: PacketType, U: PacketType>{
+struct PacketForwardingEngine<T: PacketType + Send, U: PacketType + Send>{
 
     registry: HookRegistry<T, U>,
 
 }
 
-impl<T: PacketType, U: PacketType>PacketForwardingEngine<T, U> {
+impl<T: PacketType + Send, U: PacketType + Send>PacketForwardingEngine<T, U> {
 
     pub fn new(registry: HookRegistry<T, U>) -> Self{
         Self{ registry }
     }
 
-    pub async fn run_lifetime(&self, mut packet: PacketContext<T, U>) {
+    pub async fn run_lifetime(&self, mut packet: PacketContext<T, U>) -> Result<(), HookError>{
+
+        let mut flawless_run = true;
 
         for state in all::<PacketState>() {
 
             packet.set_state(state);
 
-            self.registry.run_hooks(&mut packet).unwrap();
+            self.registry.run_hooks(&mut packet)
+                .await
+                .or_else(|| {
+                    flawless_run = false;
+                });
 
         }
+
+        Ok(())
     }
 
 }
