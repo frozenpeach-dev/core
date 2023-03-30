@@ -17,18 +17,16 @@ pub trait Data {
 }
 
 impl DbManager {
-    pub async fn exec(&self, stmt : String, params : Params) -> Result<Result<(), mysql::Error>, JoinError>{
-        let pool = self.pool.clone();
-        tokio::spawn(async move {
-            match pool.get_conn(){
-                Err(e) => return Err(e),
-                Ok(mut conn) => conn.exec_drop(stmt, params)
-                }
-        }).await
+    pub fn exec(&self, stmt : String, params : Params) -> Result<(), mysql::Error>{
+    let pool = self.pool.clone();
+    match pool.get_conn(){
+        Err(e) => return Err(e),
+        Ok(mut conn) => conn.exec_drop(stmt, params)
+        }
     }
 
-    pub async fn insert<T : Data>(&self, data : T) -> Result<Result<(), mysql::Error>, JoinError>{
-        self.exec(data.insert_statement(), data.value()).await
+    pub fn insert<T : Data>(&self, data : T) -> Result<(), mysql::Error>{
+        self.exec(data.insert_statement(), data.value())
     }
 
     pub fn new(db_name : String, user : String, password : String, host : String) -> Self{

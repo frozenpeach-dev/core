@@ -16,6 +16,6 @@ async fn main() {
     let database = db.clone();
     tokio::spawn(async move {
         let db = database.lock().unwrap();
-        db.exec(String::from("INSERT INTO lease VALUE (:address, :name, :id)"), params! {"address" => "127.0.0.1", "name" => "frost", "id" => 3}).await.unwrap().unwrap();
-    });
+        db.exec(String::from("INSERT INTO lease VALUE (:address, :name, :id)"), params! {"address" => "127.0.0.2", "name" => "frost", "id" => 2}).unwrap();
+    }).await.unwrap();
 }
