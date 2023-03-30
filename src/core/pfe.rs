@@ -20,17 +20,11 @@ impl<T: PacketType + Send, U: PacketType + Send>PacketForwardingEngine<T, U> {
 
     pub async fn run_lifetime(&self, mut packet: PacketContext<T, U>) -> Result<(), HookError>{
 
-        let mut flawless_run = true;
-
         for state in all::<PacketState>() {
 
             packet.set_state(state);
 
-            self.registry.run_hooks(&mut packet)
-                .await
-                .or_else(|| {
-                    flawless_run = false;
-                });
+            self.registry.run_hooks(&mut packet).await?
 
         }
 
