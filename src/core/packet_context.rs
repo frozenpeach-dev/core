@@ -1,17 +1,17 @@
 use std::{time::Duration, net::{Ipv4Addr, SocketAddr}};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, NaiveTime};
 use enum_iterator::Sequence;
 use mac_address::MacAddress;
+
 
 use super::{state::{self, PacketState}, message_type::PacketType};
 
 pub struct PacketContext<T : PacketType, U: PacketType> {
-
-    source_addr : SocketAddr,
+    pub source_addr : SocketAddr,
     time: DateTime<Utc>,
     id: usize,
     state: PacketState,
-    input_packet : T,
+    pub input_packet : T,
     pub output_packet : U
 
 }
