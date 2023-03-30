@@ -1,5 +1,5 @@
 use chrono::{ DateTime, Utc, Duration};
-use mysql::params;
+use mysql::{params, prelude::{FromRow, FromValue}, Row};
 use std::net::Ipv4Addr;
 use crate::utils::data::Data;
 
@@ -32,5 +32,34 @@ impl Data for LeaseV4 {
     }
     fn insert_statement(&self) -> String {
         format!("INSERT INTO {} VALUES (?, ?, ?, ?)", self.mysql_table)      
+    }
+    fn id(&self) -> u64 {
+        todo!()
+    }
+}
+
+impl Data for &LeaseV4 {
+    fn value(&self) -> mysql::params::Params {
+        params! {"ip_address" => self.ip_address.to_string(), "hardware_address" => self.hardware_address.to_string(), "expiration" => self.expiration.to_rfc3339()}
+    }
+    fn insert_statement(&self) -> String {
+        format!("INSERT INTO {} VALUES (?, ?, ?, ?)", self.mysql_table)      
+    }
+    fn id(&self) -> u64 {
+        todo!()
+    }
+}
+
+//Create Lease from mysqlRow
+impl FromRow for LeaseV4 {
+    fn from_row(row: Row) -> Self
+        where
+            Self: Sized, {
+        todo!()
+    }
+    fn from_row_opt(row: Row) -> Result<Self, mysql::FromRowError>
+        where
+            Self: Sized {
+        todo!()
     }
 }
