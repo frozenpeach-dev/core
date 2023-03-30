@@ -1,4 +1,4 @@
-use std::{time::Duration, net::{Ipv4Addr, SocketAddr}};
+use std::{time::Duration, net::{Ipv4Addr, SocketAddr}, vec};
 use chrono::{DateTime, Utc, NaiveTime};
 use enum_iterator::Sequence;
 use mac_address::MacAddress;
@@ -60,7 +60,21 @@ impl HardwareAddress {
             is_mac_addres = true;
         }
         Self { address: (addr), is_mac_address: (is_mac_addres), raw: (raw) }
-        
+    }
+}
+
+impl ToString for HardwareAddress {
+    fn to_string(&self) -> String {
+        if self.is_mac_address {
+            return self.address.to_string();
+        } else {
+            let raw = &self.raw.clone();
+            return raw
+                .iter().map(|b| format!("{b:X}"))
+                .collect::<Vec<String>>()
+                .join(":");
+        }
+
     }
 }
 
