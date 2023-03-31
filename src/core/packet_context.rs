@@ -38,6 +38,7 @@ impl<T: PacketType, U:PacketType> Iterator for PacketContext<T, U> {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct HardwareAddress {
     pub address : MacAddress,
     pub is_mac_address: bool,
