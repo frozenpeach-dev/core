@@ -1,10 +1,10 @@
-use std::{time::Duration, net::{Ipv4Addr, SocketAddr}, vec};
-use chrono::{DateTime, Utc, NaiveTime};
+use std::net:: SocketAddr;
+use chrono::{DateTime, Utc};
 use enum_iterator::Sequence;
 use mac_address::MacAddress;
 
 
-use super::{state::{self, PacketState}, message_type::PacketType};
+use super::{state::PacketState, message_type::PacketType};
 
 pub struct PacketContext<T : PacketType, U: PacketType> {
     pub source_addr : SocketAddr,

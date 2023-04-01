@@ -12,3 +12,4 @@ itertools = "0.10.5"
 enum-iterator = "1.4.0"
 mysql = "*"
 tokio = { version = "1", features = ["full"] }
+syn = "0"
