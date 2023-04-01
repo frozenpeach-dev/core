@@ -19,6 +19,10 @@ pub struct PacketContext<T : PacketType + Send, U: PacketType + Send> {
 
 impl<T: PacketType + Send, U:PacketType + Send> PacketContext<T, U> {
 
+    pub fn new(source_addr: SocketAddr, id: usize, input_packet: T) -> PacketContext<T, U> {
+        Self{source_addr, time: Utc::now(), id, state: PacketState::Received, input_packet, output_packet : U::empty()}
+    }
+
     pub fn set_state(&mut self, new_state: PacketState) {
         self.state = new_state;
     }

@@ -2,6 +2,7 @@ use std::{net::Ipv4Addr, collections::HashMap};
 
 use chrono::{Duration, NaiveTime};
 use itertools::Itertools;
+use mac_address::MacAddress;
 
 use super::packet_context::HardwareAddress;
 
@@ -10,6 +11,7 @@ use super::packet_context::HardwareAddress;
 pub trait PacketType: AsRef<[u8]> {
 
     fn from_raw_bytes(raw: &[u8]) -> Self;
+    fn empty() -> Self;
 
 }
 
@@ -368,6 +370,11 @@ impl DhcpV4Packet {
 }
 
 impl PacketType for DhcpV4Packet {
+
+    fn empty() -> Self {
+        Self { op: 0, htype: 0, hlen: 0, hops: 0, xid: 0, secs: NaiveTime::from_hms_opt(0, 0, 0).unwrap(), flags: [0, 0], ciaddr: Ipv4Addr::new(0, 0, 0, 0), yiaddr: Ipv4Addr::new(0, 0, 0, 0), siaddr: Ipv4Addr::new(0, 0, 0, 0), giaddr: Ipv4Addr::new(0, 0, 0, 0), chadd: HardwareAddress { address: MacAddress::new([0, 0, 0, 0, 0, 0]), is_mac_address: true, raw: [0u8; 16] }, sname: String::from(""), file: String::from(""), options: DhcpOptions { options: HashMap::new() } }
+    }
+
     fn from_raw_bytes(raw : &[u8]) -> Self{
         let mut raw = raw.to_vec();
         let op = raw.remove(0);
