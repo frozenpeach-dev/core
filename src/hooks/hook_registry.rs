@@ -197,7 +197,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
 
         for hook in exec_order.iter() {
 
-            let hook = self.registry.get(&packet.state()).unwrap().get(hook).unwrap();
+            let hook = self.registry.get(&packet.state()).ok_or(HookError::new("No hooks associated with this state"))?.get(hook).unwrap();
 
             if exec_code.contains_key(&hook.id) { continue; }
 
@@ -254,19 +254,20 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
     /// [`Send`] and [`Sync`]
 
     pub fn register_service<V: Send + Sync + 'static>(&mut self, service: V) {
-        self.services.try_lock().unwrap().insert(Arc::new(service));
+        self.services.lock().expect("Services mutex was poisonned")
+            .insert(Arc::new(service));
     }
 
     fn run_failure_chain(&self, packet: &mut PacketContext<T, U>) -> Result<(), HookError> {
         
-        for hook in self.registry.get(&PacketState::Failure).unwrap().values() {
+        for hook in self.registry.get(&PacketState::Failure).ok_or(HookError::new("No failure hooks defined"))?.values() {
             (hook.exec)(self.services.clone(), packet)
                 .or_else(|x| {
                     debug!("Hook {} in failure chain exited with failure (exit code {})", hook.name, x);
                     Ok::<isize, HookError>(0)
                 }).unwrap();
         }
-        Err(HookError::new(0))
+        Err(HookError::new("One or more fatal hooks was unsuccessful"))
 
     }
 
@@ -287,7 +288,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
         let mut deps_map : HashMap<Uuid, Vec<Uuid>> = HashMap::new();
         let mut resolved_graph : Vec<Uuid> = Vec::new();
 
-        for hook in self.registry.get(for_state).ok_or(HookError::new(1))?.iter() {
+        for hook in self.registry.get(for_state).ok_or(HookError::new("No hooks associated with this state"))?.iter() {
             deps_map.insert(*hook.0, hook.1.dependencies.keys().map(|x| *x).collect_vec());
         }
 
@@ -302,7 +303,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
             } 
 
             if ready_hooks.len() == 0 {
-                return Err(HookError::new(4));
+                return Err(HookError::new("Circular dependencies in hooks"));
             }
 
             for hook in ready_hooks.iter() {
