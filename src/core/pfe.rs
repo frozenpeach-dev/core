@@ -24,7 +24,7 @@ impl<T: PacketType + Send, U: PacketType + Send>PacketForwardingEngine<T, U> {
 
             packet.set_state(state);
 
-            self.registry.run_hooks(&mut packet).await?
+            self.registry.run_hooks(&mut packet)?
 
         }
 
