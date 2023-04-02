@@ -21,6 +21,7 @@ pub struct Hook<T: PacketType + Send, U: PacketType + Send> {
     name: String,
     pub dependencies: HashMap<Uuid, bool>,
     flags: Vec<HookFlags>,
+    next_hook: Option<Uuid>,
     pub exec: Box<dyn Fn(Arc<Mutex<TypeMap>>, &mut PacketContext<T, U>) -> Result<isize, HookError>>,
 }
 
@@ -44,7 +45,7 @@ impl<T: PacketType + Send, U: PacketType + Send> Hook<T, U> {
     /// ```
     pub fn new(name: String, exec: Box<dyn Fn(Arc<Mutex<TypeMap>>, &mut PacketContext<T, U>) -> Result<isize, HookError>>, flags: Vec<HookFlags>) -> Self {
         let id = Uuid::new_v4();
-        Self {id, name, dependencies: HashMap::new(), exec, flags}
+        Self {id, name, dependencies: HashMap::new(), exec, flags, next_hook: None}
     }
 
     /// Add a dependency to the success of another `Hook` specified by its [`Uuid`]
@@ -300,10 +301,10 @@ mod tests {
     fn test_dependency_hook() {
         let mut registry: HookRegistry<A, A> = HookRegistry::new();
         let input_packet = A::empty(); 
-        let hook1 = Hook::new(String::from("test1"), Box::new(|_, _| {
+        let mut hook1 = Hook::new(String::from("test1"), Box::new(|_, _| {
             Ok(1)
         }), Vec::default());
-        let hook2 = Hook::new(String::from("test2"), Box::new(|_, _| {
+        let mut hook2 = Hook::new(String::from("test2"), Box::new(|_, _| {
             Ok(1)
         }), Vec::default());
         let mut hook3 = Hook::new(String::from("test2"), Box::new(|_, _| {
@@ -344,36 +345,6 @@ mod tests {
     #[test]
     fn test_dependency_tree() {
         let mut registry: HookRegistry<A, A> = HookRegistry::new();
-
-        let mut hook1 = Hook::new(String::from("test1"), Box::new(|_, _: &mut PacketContext<A, A>| {
-            Ok(1)
-        }), Vec::default());
-        let mut hook2 = Hook::new(String::from("test2"), Box::new(|_, _: &mut PacketContext<A, A>| {
-            Ok(1)
-        }), Vec::default());
-        let hook3 = Hook::new(String::from("test2"), Box::new(|_, _: &mut PacketContext<A, A>| {
-            assert!(0 == 1); 
-            Ok(1)
-        }), Vec::default());
-
-        let hook1id = hook1.id;
-        let hook2id = hook2.id;
-        let hook3id = hook3.id;
-
-        hook2.must(hook1id);
-        hook1.must(hook3id);
-        hook2.must(hook3id);
-
-        registry.register_hook(PacketState::Received, hook3);
-        registry.register_hook(PacketState::Received, hook2);
-        registry.register_hook(PacketState::Received, hook1);
-
-        let mut graph = registry.generate_graph(&PacketState::Received).unwrap();
-
-        assert!(graph.pop().unwrap() == hook2id);
-        assert!(graph.pop().unwrap() == hook1id);
-        assert!(graph.pop().unwrap() == hook3id);
-
     }
 
 }

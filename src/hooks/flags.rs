@@ -3,5 +3,6 @@
 pub enum HookFlags {
 
     Fatal,
+    Chained
 
 }
