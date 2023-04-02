@@ -1,6 +1,6 @@
 
 #[derive(PartialEq, Eq)]
-pub enum HookFlags {
+pub enum HookFlag {
 
     Fatal,
     Chained
