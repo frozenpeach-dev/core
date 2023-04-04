@@ -15,7 +15,7 @@ use log::{trace, debug};
 use uuid::Uuid;
 
 
-use crate::core::{message_type::PacketType, packet_context::{self, PacketContext}, state::PacketState, errors::HookError};
+use crate::core::{state::PacketState, errors::HookError, packet::{PacketType, PacketContext}};
 
 use super::{typemap::TypeMap, flags::HookFlag};
 
@@ -187,10 +187,10 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
     /// ```
     ///
     /// This will print out a 1
-    pub fn run_hooks(&self, packet: &mut packet_context::PacketContext<T, U>) -> Result<(), HookError> {
+    pub fn run_hooks(&self, packet: &mut PacketContext<T, U>) -> Result<(), HookError> {
     
         let mut exec_code: HashMap<Uuid, isize> = HashMap::new();        
-        if packet.state() == &PacketState::Failure {
+        if packet.state() == PacketState::Failure {
             self.run_failure_chain(packet)?
         }
 
@@ -355,15 +355,15 @@ mod tests {
         let mut registry: HookRegistry<A, A> = HookRegistry::new();
         let input_packet = A::empty();
         registry.register_hook(PacketState::Received, Hook::new(String::from("test_hook"), Box::new(|_, packet: &mut PacketContext<A, A>| {
-            packet.output_packet.name = 2;
+            packet.output_packet().name = 2;
             Ok(1)
         }), Vec::default()));
 
         let mut packet: PacketContext<A, A> = PacketContext::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 1), 1, input_packet);
 
-        assert!(packet.output_packet.name == 0);
+        assert!(packet.output_packet().name == 0);
         registry.run_hooks(&mut packet).unwrap();
-        assert!(packet.output_packet.name == 2);
+        assert!(packet.output_packet().name == 2);
 
     }
 
@@ -447,3 +447,4 @@ mod tests {
     }
 
 }
+
