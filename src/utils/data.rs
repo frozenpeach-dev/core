@@ -78,7 +78,7 @@ impl DbManager {
         let url = format!("mysql://{}:{}@{}/{}", user, password, host, db_name);
         let opts = Opts::from_url(&url).unwrap();
         let pool = Pool::new(opts).unwrap();
-        Self{db_name, user, password, pool : Arc::new(pool)}
+        Self { db_name, user, password, pool : Arc::new(pool) }
     }
 }
 
