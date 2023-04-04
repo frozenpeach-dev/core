@@ -1,5 +1,5 @@
 //! This module provides tools to store your data with a mysql synchronization
-use std::{sync::{Arc, Mutex}, collections::{HashMap, HashSet}};
+use std::{sync::{Arc, Mutex}, collections::{HashMap, HashSet, hash_map::Entry}};
 use itertools::Itertools;
 use mysql::{self, Pool, params, prelude::{Queryable, FromValue, FromRow}, Params, Opts};
 use log;
