@@ -144,7 +144,8 @@ impl<T: PacketType + Send, U: PacketType + Send> Hook<T, U> {
 pub struct HookRegistry<T: PacketType + Send, U: PacketType + Send> {
 
     registry: HashMap<PacketState, HashMap<Uuid, Hook<T, U>>>,
-    services: Arc<Mutex<TypeMap>>
+    services: Arc<Mutex<TypeMap>>,
+    exec_order: HashMap<PacketState, Vec<Uuid>> 
 
 }
 
@@ -161,7 +162,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
     /// let registry = HookRegistry::new();
     /// ```
     pub fn new() -> Self {
-        Self { registry: HashMap::new(), services: Arc::new(Mutex::new(TypeMap::new()))}
+        Self { registry: HashMap::new(), services: Arc::new(Mutex::new(TypeMap::new())), exec_order: HashMap::new() }
     }
 
     /// Execute every registered [`Hook`] on the given [`PacketContext`] 
@@ -193,9 +194,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
             self.run_failure_chain(packet)?
         }
 
-        let exec_order = self.generate_exec_order(&packet.state())?;
-
-        for hook in exec_order.iter() {
+        for hook in self.exec_order.get(&packet.state()).iter() {
 
             let hook = self.registry.get(&packet.state()).ok_or(HookError::new("No hooks associated with this state"))?.get(hook).unwrap();
 
@@ -245,6 +244,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
             self.registry.insert(state, HashMap::new());
             self.register_hook(state, hook);
         }
+        self.exec_order.insert(state, self.generate_exec_order.insert(&state)?);
 
     }
 
