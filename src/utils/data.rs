@@ -42,7 +42,7 @@ impl DbManager {
         match pool.get_conn(){
             Err(e) => return Err(e),
             Ok(mut conn) => conn.exec(stmt, params)
-            }
+        }
     }
 
     ///Exec guven query.
