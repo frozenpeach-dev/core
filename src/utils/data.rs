@@ -78,7 +78,7 @@ impl DbManager {
         let pool = Pool::new(opts).unwrap();
         Self { db_name, user, password, pool : Arc::new(pool) }
     }
-}
+
 
 
 
