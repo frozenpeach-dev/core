@@ -135,7 +135,7 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
         let ids = deprecated_ids.iter().join(",");
         //Remove old ids from disk
         if ids.len() > 0 {
-            return db.exec_and_drop(format!("DELETE FROM {} WHERE id IN ( {} )",pool.name, ids),Params::Empty)
+            db.exec_and_drop(format!("DELETE FROM {} WHERE id IN ( {} )",pool.name, ids),Params::Empty)?;
         }else {
             return Ok(());
         }
