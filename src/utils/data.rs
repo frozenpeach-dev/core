@@ -235,10 +235,10 @@ impl<V : Data + FromRow> DataPool<V>{
     /// ```
     fn insert(&self, data : V) -> Result<(), String>{
         let mut runtime = self.runtime.lock().unwrap();
-        if !runtime.contains_key(&data.id()){
-            runtime.insert(data.id(), data);
+        if let Entry::Vacant(e) = runtime.entry(data.id()) {
+            e.insert(data);
             Ok(())
-        }else {
+        } else {
             Err(String::from("Id already in use"))
         }
     }
