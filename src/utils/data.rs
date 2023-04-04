@@ -49,9 +49,7 @@ impl DbManager {
     pub fn query<T : FromValue>(&self, query : String) -> Result<Vec<T>, mysql::Error> {
         //Query database
         let pool = self.pool.clone();
-        match pool.get_conn(){
-            Err(e) => return Err(e),
-            Ok(mut conn) => conn.query(query)
+        pool.get_conn()?.query(query)
         }
     }
 
