@@ -154,7 +154,7 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
     }
 
     pub fn new(db : Arc<Mutex<DbManager>>) -> Self{
-        Self { dbmanager: db.clone(), pools : Arc::new(Mutex::new(HashMap::new())), index : Arc::new(Mutex::new(HashMap::new()))}
+        Self { dbmanager: db, pools : Arc::new(Mutex::new(HashMap::new())), index : Arc::new(Mutex::new(HashMap::new()))}
     }
 
     ///Run every task for synchronization.
