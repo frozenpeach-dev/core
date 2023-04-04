@@ -134,7 +134,7 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
         if ids.len() > 0 {
             db.exec_and_drop(format!("DELETE FROM {} WHERE id IN ( {} )",pool.name, ids),Params::Empty)?;
         }else {
-            return Ok(());
+            Ok(())
         }
         
     }
