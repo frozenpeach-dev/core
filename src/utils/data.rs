@@ -59,7 +59,7 @@ impl DbManager {
     fn exec_and_drop(&self, stmt : String, params : Params) -> Result<(), mysql::Error>{
         //Exec statement with given params and drop result (useful for dropping data for instance)
         let pool = self.pool.clone();
-        pool.get_conn()?.exec_drop(stmt, params);
+        pool.get_conn()?.exec_drop(stmt, params)
         }
 
     ///Insert data in a given table
@@ -132,7 +132,7 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
         let ids = deprecated_ids.iter().join(",");
         //Remove old ids from disk
         if !ids.is_empty() {
-            db.exec_and_drop(format!("DELETE FROM {} WHERE id IN ( {} )",pool.name, ids),Params::Empty)?;
+            db.exec_and_drop(format!("DELETE FROM {} WHERE id IN ( {} )",pool.name, ids),Params::Empty)
         } else {
             Ok(())
         }
