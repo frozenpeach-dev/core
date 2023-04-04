@@ -1,12 +1,13 @@
 use enum_iterator::Sequence;
 
 
-#[derive(Debug, Sequence, Clone, Copy)]
+#[derive(Copy, Debug, Sequence, PartialEq, Eq, Hash, Clone)]
 pub enum PacketState {
 
     Received,
     Prepared,
     PostPrepared,
+    Failure,
 
 }
 
