@@ -98,7 +98,7 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
                 if !self.index.clone().lock().unwrap().contains_key(&data.id()){
                     self.store(data, table.clone()).unwrap();
                     log::info!("Loaded data {}", id);
-                }else {
+                } else {
                     log::info!("Tried to load already existing data : {}", id);
                 }
             }
