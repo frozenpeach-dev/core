@@ -59,10 +59,7 @@ impl DbManager {
     pub fn exec_and_drop(&self, stmt : String, params : Params) -> Result<(), mysql::Error>{
         //Exec statement with given params and drop result (useful for dropping data for instance)
         let pool = self.pool.clone();
-        match pool.get_conn(){
-            Err(e) => return Err(e),
-            Ok(mut conn) => conn.exec_drop(stmt, params)
-            }
+        pool.get_conn()?.exec_drop(stmt, params);
         }
 
     ///Insert data in a given table
