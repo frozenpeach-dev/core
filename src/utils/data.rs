@@ -1,12 +1,17 @@
+//! This module provides tools to store your data with a mysql synchronization
 use std::{sync::{Arc, Mutex}, collections::{HashMap, HashSet}};
 use itertools::Itertools;
 use mysql::{self, Pool, params, prelude::{Queryable, FromValue, FromRow}, Params, Opts};
+use log;
 
+///Trait implementing methods for data that will be stored in RuntimeStorage.
 pub trait Data {
     fn value(&self) -> params::Params;
     fn insert_statement(&self, place : String) -> String;
     fn id(&self) -> u64;
 }
+
+///DbManager aims to manage MySql connections and interactions.
 pub struct DbManager{
     pub db_name : String,
     pub user : String,
@@ -14,20 +19,23 @@ pub struct DbManager{
     pub pool : Arc<Pool>,
 }
 
+///RuntimeStorage manage storage. It is the interface between user and runtime/backend storage.
 pub struct RuntimeStorage<V : Data + FromRow>{
     pools : Arc<Mutex<HashMap<String, Arc<Mutex<DataPool<V>>>>>>,
     dbmanager : Arc<Mutex<DbManager>>,
-    index : HashMap<u64, String>
+    index : Arc<Mutex<HashMap<u64, String>>>
 }
 
+///`DataPool` is a high-level storage manager tha allows you to quickly access and store data, while ensuring your data are protected from code interruption with live MySql Database synchronization.
 pub struct DataPool<V : Data + FromRow> {
     name : String,
-    filters : Vec<fn(&u64, &mut V) -> bool>,
+    filters : Vec<fn(&u64, &V) -> bool>,
     runtime : Arc<Mutex<HashMap<u64,V>>>,
     schema : String
 }
 
 impl DbManager {
+    ///Exec statement with given params and return the result
     pub fn exec_and_return<T : FromRow>(&self, stmt : String, params : Params) -> Result<Vec<T>, mysql::Error>{
         //Exec statement with given params and return result
         let pool = self.pool.clone();
@@ -37,6 +45,7 @@ impl DbManager {
             }
     }
 
+    ///Exec guven query.
     pub fn query<T : FromValue>(&self, query : String) -> Result<Vec<T>, mysql::Error> {
         //Query database
         let pool = self.pool.clone();
@@ -46,6 +55,7 @@ impl DbManager {
         }
     }
 
+    ///Exec statement with given params and drop the result (usefull for drop statement for example)
     pub fn exec_and_drop(&self, stmt : String, params : Params) -> Result<(), mysql::Error>{
         //Exec statement with given params and drop result (usefull for dropping data for instance)
         let pool = self.pool.clone();
@@ -55,11 +65,13 @@ impl DbManager {
             }
         }
 
+    ///Insert data in a given table
     pub fn insert<T : Data>(&self, data : &T, place: String) -> Result<(), mysql::Error>{
         //Insert data in db
         self.exec_and_drop(data.insert_statement(place), data.value())
     }
 
+    ///Drop data having given id. A table must be given.
     pub fn drop<T : Data>(&self, table : String, ids : Vec<u64>) -> Result<(), mysql::Error>{
         //Drop data from db
         self.exec_and_drop(String::from("DELETE FROM :table WHERE id = :id"), params! {"table" => table, "id" => ids.iter().join(",")})
@@ -77,18 +89,28 @@ impl DbManager {
 
 impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
 
-    // pub fn load(&self, database : Mutex<DbManager>){
-    //     //Load data from database
-    //     let db = database.lock().unwrap();
-    //     let rows:Vec<V> = db.exec_and_return(String::from("SELECT * FROM :table "), params! {"table" => &self.table}).unwrap();
-    //     for element in rows.into_iter(){
-    //         let mut db = self.runtime.lock().unwrap();
-    //         if !db.contains_key(&element.id()){
-    //             db.insert(element.id(), element);
-    //         }
-    //     }
-    // }
+    ///Load data from static mysql database.
+    pub fn load(&mut self, database : Mutex<DbManager>){
+        //Load data from database
+        let db = database.lock().unwrap();
+        let tables:Vec<String> = db.exec_and_return(String::from("SHOW TABLES"), Params::Empty).unwrap();
+        for table in tables {
+            let pool = DataPool::empty(table.clone());
+            self.add_pool(pool);
+            let rows:Vec<V> = db.exec_and_return(String::from("SELECT * FROM :table "), params! {"table" => table.clone()}).unwrap();
+            for data in rows {
+                let id = data.id();
+                if !self.index.clone().lock().unwrap().contains_key(&data.id()){
+                    self.store(data, table.clone()).unwrap();
+                    log::info!("Loaded data {}", id);
+                }else {
+                    log::info!("Tried to load already existing data : {}", id);
+                }
+            }
+        }
+    }
 
+    ///Synchronizes given pool with database : inserts missing data in database and remove old data 
     fn pool_sync(&'a self, pool : &Arc<Mutex<DataPool<V>>>) -> Result<(), mysql::Error>{
         //Sync database with runtime
         let db = self.dbmanager.lock().unwrap();
@@ -107,7 +129,7 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
         //Add new ids to disk
         for id in new_ids {
             let value = runtime.get(&id).unwrap();
-            db.insert(value, String::from(self.index.get(&id).unwrap())).unwrap();
+            db.insert(value, String::from(self.index.clone().lock().unwrap().get(&id).unwrap())).unwrap();
         };
 
         let ids = deprecated_ids.iter().join(",");
@@ -120,28 +142,58 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
         
     }
 
+    /// Store data in the pool given the pool name.
+    /// Example
+    /// ```rust
+    /// runtime.store(data, String::from("pool_name"));
+    /// ```
     pub fn store(&mut self, data : V, pool_name : String)-> Result<(), String>{
         //Store data
         let pool = self.pools.clone().lock().unwrap().get(&pool_name).unwrap().clone();
         let pool = pool.lock().unwrap();
-        self.index.insert(data.id(), pool.name());
+        self.index.clone().lock().unwrap().insert(data.id(), pool.name());
         pool.insert(data)
         
     }
 
     pub fn new(db : Arc<Mutex<DbManager>>) -> Self{
-        Self { dbmanager: db.clone(), pools : Arc::new(Mutex::new(HashMap::new())), index : HashMap::new()}
+        Self { dbmanager: db.clone(), pools : Arc::new(Mutex::new(HashMap::new())), index : Arc::new(Mutex::new(HashMap::new()))}
     }
 
-    pub fn sync(&'a self){
+    ///Run every task for synchronization.
+    /// To synchronize your RuntimeStorage, you will need to use something like :
+    /// ```rust
+    /// let runtime = RuntimeStorage::new();
+    /// let runtime = Arc::new(Mutex::new(runtime));
+    /// let synchronizer = runtime.clone();
+    /// tokio::spawn(async move {
+    ///     looop {
+    ///         time::sleep(duration).await;
+    ///         synchronizer.lock().unwrap().sync();
+    ///     }
+    /// }).await;
+    /// ```
+    pub fn sync(&'a mut self){
+        let mut removed_overall:Vec<u64> = vec![];
         for pool in self.pools.clone().lock().unwrap().values() {
             //Run every sync task
             self.pool_sync(pool).unwrap();
             //Filter data
-            pool.clone().lock().unwrap().purge();
+            let mut removed = pool.clone().lock().unwrap().purge();
+            removed_overall.append(&mut removed);
+            
         }
+        for k in removed_overall {
+            self.index.clone().lock().unwrap().remove(&k);
+        };
     }
-    
+
+    ///Add a pool `DataPool` to storage.
+    /// # Example
+    /// ```rust
+    /// let pool = DataPool::new();
+    /// runtime.add_pool(pool);
+    /// ```
     pub fn add_pool(&self, pool : DataPool<V>) {
         let mut pools = self.pools.lock().unwrap();
         let name = pool.name();
@@ -153,20 +205,38 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
 }
 
 impl<V : Data + FromRow> DataPool<V>{
-    pub fn purge(&self){
-        println!("Purging pool {}", self.name);
+    ///Iter over filters and drop data that return false when passed as argument to condition functions.
+    pub fn purge(&self) -> Vec<u64>{
+        let mut overall_removed: Vec<u64> = vec![];
+        log::info!("Purging pool {}", self.name);
         for filter in &self.filters {
+            let mut removed: Vec<u64> = vec![];
             let mut data = self.runtime.lock().unwrap();
-            data.retain(filter);
+            for (k, v) in data.iter(){
+                if filter(&k,&v){
+                    removed.push(*k);
+                }
+            }
+            for k in removed.iter(){
+                data.remove(k);
+            }
+            overall_removed.append(& mut removed);
         }
-    }
+        overall_removed
+    }      
 
-    pub fn add_filter(&mut self, filter : fn(&u64, &mut V) -> bool){
+    ///Add filter to filter list.
+    pub fn add_filter(&mut self, filter : fn(&u64, &V) -> bool){
         //Add filter to filters
         self.filters.push(filter);
     }
 
-    pub fn insert(&self, data : V) -> Result<(), String>{
+    ///Inserts data in a pool, this function is private, meaning that to store data in a pool, you would use :
+    /// ```ignore
+    /// let data = Data::new();
+    /// dataPool.store(data, pool_name);
+    /// ```
+    fn insert(&self, data : V) -> Result<(), String>{
         let mut runtime = self.runtime.lock().unwrap();
         if !runtime.contains_key(&data.id()){
             runtime.insert(data.id(), data);
@@ -176,10 +246,12 @@ impl<V : Data + FromRow> DataPool<V>{
         }
     }
 
-    pub fn drop(&self, id : &u64){
+    ///Drops data given its id.
+    fn drop(&self, id : &u64){
         self.runtime.lock().unwrap().remove(id);
     }
 
+    ///Create an empty pool with a given name.
     pub fn empty(name : String) -> Self {
         Self {
             name,
@@ -198,10 +270,12 @@ impl<V : Data + FromRow> DataPool<V>{
         }
     }
 
+    ///Getter
     pub fn name(&self)-> String{
         self.name.clone()
     }
 
+    ///Getter
     pub fn schema(&self) -> String{
         self.schema.clone()
     }
