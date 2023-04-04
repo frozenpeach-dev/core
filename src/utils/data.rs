@@ -50,7 +50,6 @@ impl DbManager {
         //Query database
         let pool = self.pool.clone();
         pool.get_conn()?.query(query)
-        }
     }
 
     ///Exec statement with given params and drop the result (usefull for drop statement for example)

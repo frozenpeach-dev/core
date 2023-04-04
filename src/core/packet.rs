@@ -13,7 +13,7 @@ use super::state::PacketState;
 pub trait PacketType {
     fn to_raw_bytes(&self) -> &[u8];
     fn empty() -> Self;
-    fn from_raw_bytes(raw_data : Vec<u8>) -> Self;
+    fn from_raw_bytes(raw_data : &[u8]) -> Self;
 }
 
 /// A `PacketContext` encapsulates two things:
