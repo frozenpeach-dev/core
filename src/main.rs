@@ -3,7 +3,7 @@ use crate::core::packet_context::HardwareAddress;
 use ::core::sync;
 use std::{sync::{Mutex, Arc}, net::Ipv4Addr, time::Duration};
 
-use chrono::{Utc};
+use chrono::Utc;
 use tokio::time::sleep;
 use utils::data::{DbManager, RuntimeStorage, DataPool};
 use log;
