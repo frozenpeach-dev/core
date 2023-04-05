@@ -4,7 +4,7 @@ use log::trace;
 
 use crate::hooks::hook_registry::HookRegistry;
 
-use super::packet::{PacketType, PacketContext};
+use super::{packet::{PacketType, PacketContext}, state::PacketState};
 
 
 pub trait Output<T: PacketType>: Send + Sync {
@@ -39,8 +39,14 @@ impl<T: PacketType + Send, U: PacketType + Send> StateSwitcher<T, U> {
             let output = self.output.clone();
             
             tokio::spawn(async move { 
-                registry.run_hooks(&mut context);
+
+                for state in enum_iterator::all::<PacketState>() {
+                    context.set_state(state);
+                    registry.run_hooks(&mut context);
+                }
+                    
                 output.send(context.get_output());
+
             });
 
         }   
@@ -48,9 +54,7 @@ impl<T: PacketType + Send, U: PacketType + Send> StateSwitcher<T, U> {
     }
 
     fn prepare_packet(&self, packet: T) -> PacketContext<T, U>{
-
         PacketContext::from(packet)
-
     }
 } 
 
