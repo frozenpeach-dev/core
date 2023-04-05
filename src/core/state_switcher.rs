@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use log::trace;
 
 use crate::hooks::hook_registry::HookRegistry;
 
 use super::packet::{PacketType, PacketContext};
 
-
+#[async_trait]
 pub trait Output<T: PacketType>: Send + Sync {
-    fn send(&self, packet: &T);
+    async fn send(&self, packet: &T);
 }
 
 pub trait Input<T: PacketType>: Send {
