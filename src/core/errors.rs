@@ -4,7 +4,7 @@ use std::fmt::Display;
 /// 
 /// Used for errors when executing the associated closure
 /// or general errors in [`HookRegisty`]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct HookError(&'static str);
 impl HookError {
     pub(crate) fn new(code: &'static str) -> Self {

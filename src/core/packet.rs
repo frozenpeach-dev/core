@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::state::PacketState;
 
-pub trait PacketType {
+pub trait PacketType: Clone {
     fn to_raw_bytes(&self) -> &[u8];
     fn empty() -> Self;
     fn from_raw_bytes(raw_data : &[u8]) -> Self;
