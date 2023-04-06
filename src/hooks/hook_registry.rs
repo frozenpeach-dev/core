@@ -19,7 +19,7 @@ use crate::core::{state::PacketState, errors::HookError, packet::{PacketType, Pa
 
 use super::{typemap::TypeMap, flags::HookFlag};
 
-pub struct HookClosure<T: PacketType, U: PacketType>(Box<dyn Fn(Arc<Mutex<TypeMap>>, &mut PacketContext<T, U>) -> Result<isize, HookError>>);
+pub struct HookClosure<T: PacketType, U: PacketType>(pub Box<dyn Fn(Arc<Mutex<TypeMap>>, &mut PacketContext<T, U>) -> Result<isize, HookError>>);
 unsafe impl<T: PacketType, U: PacketType> Send for HookClosure<T, U>{}
 unsafe impl<T: PacketType, U: PacketType> Sync for HookClosure<T, U>{}
 
@@ -211,9 +211,20 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
             self.run_failure_chain(packet)?
         }
 
-        for hook in self.exec_order.get(&packet.state()).unwrap().iter() {
+        let exec_order = match self.exec_order.get(&packet.state()) {
+            Some(order) => order,
+            None => { return Ok(()); }
+        };
 
-            let hook = self.registry.get(&packet.state()).ok_or(HookError::new("No hooks associated with this state"))?.get(hook).unwrap();
+        for hook in exec_order.iter() {
+
+            let hook = match self.registry.get(&packet.state()) {
+                Some(lst) => { match lst.get(hook) {
+                    Some(hook) => hook,
+                    None => { continue; }
+                }},
+                None => { continue; }
+            };
 
             if exec_code.contains_key(&hook.id) { continue; }
 
