@@ -19,10 +19,6 @@ use crate::core::{state::PacketState, errors::HookError, packet::{PacketType, Pa
 
 use super::{typemap::TypeMap, flags::HookFlag};
 
-pub struct HookClosure<T: PacketType, U: PacketType>(Box<dyn Fn(Arc<Mutex<TypeMap>>, &mut PacketContext<T, U>) -> Result<isize, HookError>>);
-unsafe impl<T: PacketType, U: PacketType> Send for HookClosure<T, U>{}
-unsafe impl<T: PacketType, U: PacketType> Sync for HookClosure<T, U>{}
-
 /// An encapsulated closure, to be executed on a [`PacketContext`]
 /// to perform all types of actions. They make most of the
 /// actual logic of the program.
@@ -44,7 +40,7 @@ pub struct Hook<T: PacketType + Send, U: PacketType + Send> {
     name: String,
     dependencies: HashMap<Uuid, bool>,
     flags: Vec<HookFlag>,
-    exec: HookClosure<T, U> 
+    exec: Box<dyn Fn(Arc<Mutex<TypeMap>>, &mut PacketContext<T, U>) -> Result<isize, HookError>>,
 }
 
 impl<T: PacketType + Send, U: PacketType + Send> Hook<T, U> {
@@ -65,7 +61,7 @@ impl<T: PacketType + Send, U: PacketType + Send> Hook<T, U> {
     /// ```
     /// let my_hook = Hook::new("My hook", Box::new(|services, packet| { println!(packet.id); }));
     /// ```
-    pub fn new(name: String, exec: HookClosure<T, U>, flags: Vec<HookFlag>) -> Self {
+    pub fn new(name: String, exec: Box<dyn Fn(Arc<Mutex<TypeMap>>, &mut PacketContext<T, U>) -> Result<isize, HookError>>, flags: Vec<HookFlag>) -> Self {
         let id = Uuid::new_v4();
         Self {id, name, dependencies: HashMap::new(), exec, flags} 
     }
@@ -200,10 +196,10 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
     /// ```
     ///
     /// This will print out a 1
-    pub fn run_hooks(&self, packet: &mut PacketContext<T, U>) -> Result<(), HookError> {
+    pub fn run_hooks(&mut self, packet: &mut PacketContext<T, U>) -> Result<(), HookError> {
     
         if self.need_update {
-            return Err(HookError::new("Circular dependencies in hooks"));
+            self.exec_order.insert(packet.state(), self.generate_exec_order(&packet.state())?);
         }
 
         let mut exec_code: HashMap<Uuid, isize> = HashMap::new();        
@@ -218,7 +214,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
             if exec_code.contains_key(&hook.id) { continue; }
 
             if self.can_execute(&exec_code, &hook.dependencies) {
-                (hook.exec.0)(self.services.clone(), packet)
+                (hook.exec)(self.services.clone(), packet)
                     .map(|x| {
                         exec_code.insert(hook.id, x);
                         trace!("Hook {} exited successfully (exit code {})", hook.name, x); 
@@ -253,16 +249,11 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
 
     pub fn register_hook(&mut self, state: PacketState, hook: Hook<T,U> ) {
 
-        self.need_update = true;
         if let Entry::Vacant(e) = self.registry.entry(state) {
             e.insert(HashMap::new());
             self.register_hook(state, hook);
         } else {
             self.registry.get_mut(&state).unwrap().insert(hook.id, hook);
-        }
-        if let Ok(order) = self.generate_exec_order(&state) {
-            self.exec_order.insert(state, order);
-            self.need_update = false;
         }
 
     }
@@ -280,7 +271,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
     fn run_failure_chain(&self, packet: &mut PacketContext<T, U>) -> Result<(), HookError> {
         
         for hook in self.registry.get(&PacketState::Failure).ok_or(HookError::new("No failure hooks defined"))?.values() {
-            (hook.exec.0)(self.services.clone(), packet)
+            (hook.exec)(self.services.clone(), packet)
                 .or_else(|x| {
                     debug!("Hook {} in failure chain exited with failure (exit code {})", hook.name, x);
                     Ok::<isize, HookError>(0)
@@ -342,7 +333,6 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
 mod tests {
 
     use super::*;
-    #[derive(Clone, Copy)]
     struct A {
         name: usize
     }
@@ -369,16 +359,15 @@ mod tests {
     impl TestService {
         pub fn add(&mut self, id: usize) { self.list.push(id); }
     }
-    
     #[test]
     fn test_simple_hook() {
 
         let mut registry: HookRegistry<A, A> = HookRegistry::new();
         let input_packet = A::empty();
-        registry.register_hook(PacketState::Received, Hook::new(String::from("test_hook"), HookClosure(Box::new(|_, packet: &mut PacketContext<A, A>| {
+        registry.register_hook(PacketState::Received, Hook::new(String::from("test_hook"), Box::new(|_, packet: &mut PacketContext<A, A>| {
             packet.get_mut_output().name = 2;
             Ok(1)
-        })), Vec::default()));
+        }), Vec::default()));
 
         let mut packet: PacketContext<A, A> = PacketContext::from(input_packet);
 
@@ -392,16 +381,16 @@ mod tests {
     fn test_dependency_hook() {
         let mut registry: HookRegistry<A, A> = HookRegistry::new();
         let input_packet = A::empty(); 
-        let hook1 = Hook::new(String::from("test1"), HookClosure(Box::new(|_, _| {
+        let hook1 = Hook::new(String::from("test1"), Box::new(|_, _| {
             Ok(1)
-        })), Vec::default());
-        let hook2 = Hook::new(String::from("test2"), HookClosure(Box::new(|_, _| {
+        }), Vec::default());
+        let hook2 = Hook::new(String::from("test2"), Box::new(|_, _| {
             Ok(1)
-        })), Vec::default());
-        let mut hook3 = Hook::new(String::from("test2"), HookClosure(Box::new(|_, _| {
+        }), Vec::default());
+        let mut hook3 = Hook::new(String::from("test2"), Box::new(|_, _| {
             assert!(0 == 1); 
             Ok(1)
-        })), Vec::default());
+        }), Vec::default());
         hook3.must_not(hook1.id);
         registry.register_hook(PacketState::Received, hook1);
         let mut packet: PacketContext<A, A> = PacketContext::from(input_packet);
@@ -417,14 +406,14 @@ mod tests {
         let mut registry: HookRegistry<A, A> = HookRegistry::new();
         registry.register_service(Mutex::new(test_service));
         let input_packet = A::empty();
-        registry.register_hook(PacketState::Received, Hook::new(String::from("test_hook"), HookClosure(Box::new(|serv, packet: &mut PacketContext<A, A>| {
+        registry.register_hook(PacketState::Received, Hook::new(String::from("test_hook"), Box::new(|serv, packet: &mut PacketContext<A, A>| {
             let mut serv_mgr = serv.try_lock().unwrap();
             let my_serv = serv_mgr.get_mut::<Arc<Mutex<TestService>>>().unwrap();
             my_serv.try_lock().unwrap().add(packet.get_output().name);
             my_serv.try_lock().unwrap().add(packet.get_output().name);
             packet.get_mut_output().name = 2;
             Ok(1)
-        })), Vec::default()));
+        }), Vec::default()));
 
         let mut packet: PacketContext<A, A> = PacketContext::from(input_packet);
 
@@ -437,16 +426,16 @@ mod tests {
     fn test_dependency_tree() {
         let mut registry: HookRegistry<A, A> = HookRegistry::new();
 
-        let mut hook1 = Hook::new(String::from("test1"), HookClosure(Box::new(|_, _: &mut PacketContext<A, A>| {
+        let mut hook1 = Hook::new(String::from("test1"), Box::new(|_, _: &mut PacketContext<A, A>| {
             Ok(1)
-        })), Vec::default());
-        let mut hook2 = Hook::new(String::from("test2"), HookClosure(Box::new(|_, _: &mut PacketContext<A, A>| {
+        }), Vec::default());
+        let mut hook2 = Hook::new(String::from("test2"), Box::new(|_, _: &mut PacketContext<A, A>| {
             Ok(1)
-        })), Vec::default());
-        let hook3 = Hook::new(String::from("test2"), HookClosure(Box::new(|_, _: &mut PacketContext<A, A>| {
+        }), Vec::default());
+        let hook3 = Hook::new(String::from("test2"), Box::new(|_, _: &mut PacketContext<A, A>| {
             assert!(0 == 1); 
             Ok(1)
-        })), Vec::default());
+        }), Vec::default());
 
         let hook1id = hook1.id;
         let hook2id = hook2.id;
