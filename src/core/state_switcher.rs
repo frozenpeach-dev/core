@@ -105,15 +105,11 @@ impl<T: PacketType + Send, U: PacketType + Send> StateSwitcher<T, U> {
                     
                 let output_packet = context.drop();
                 let bytes_len = output_packet.to_raw_bytes().len();
-                let success = match output.send(output_packet)
+                let success = output.send(output_packet)
                     .await
                     .ok()
-                    .map(|len| { len == bytes_len }) {
-
-                    Some(check) => check,
-                    None => false
-
-                };
+                    .map(|len| { len == bytes_len })
+                    .unwrap_or(false);
 
                 if !success {
                     drops.store(drops.load(SeqCst) + 1, SeqCst);
