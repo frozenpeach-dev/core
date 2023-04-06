@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::state::PacketState;
 
-pub trait PacketType: Clone {
+pub trait PacketType: Clone + Copy {
     fn to_raw_bytes(&self) -> &[u8];
     fn empty() -> Self;
     fn from_raw_bytes(raw_data : &[u8]) -> Self;
@@ -135,6 +135,15 @@ impl<T: PacketType, U: PacketType> PacketContext<T, U> {
     /// to its raw bytes representation
     pub fn output_to_raw(&self) -> &[u8]{
         self.output_packet.to_raw_bytes()
+    }
+
+    /// Returns the contained output packet,
+    /// destroying itself in the process
+    pub fn drop(self) -> U {
+        let ot_pk = self.output_packet;
+        drop(self);
+
+        ot_pk
     }
 
     /// Returns the current lifetime of
