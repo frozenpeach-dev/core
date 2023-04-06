@@ -3,12 +3,15 @@ use std::{sync::{Arc, Mutex}, collections::{HashMap, HashSet, hash_map::Entry}};
 use itertools::Itertools;
 use mysql::{self, Pool, params, prelude::{Queryable, FromValue, FromRow}, Params, Opts};
 use log;
+use rand;
+
 
 ///Trait implementing methods for data that will be stored in RuntimeStorage.
 pub trait Data {
     fn value(&self) -> params::Params;
     fn insert_statement(&self, place : String) -> String;
     fn id(&self) -> u64;
+    fn set_uid(&mut self, uid : u64);
 }
 
 ///DbManager aims to manage MySql connections and interactions.
@@ -81,7 +84,7 @@ impl DbManager {
 
 
 
-impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
+impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V> where &'a V : Data{
 
     ///Load data from static mysql database.
     pub fn load(&mut self, database : Mutex<DbManager>){
@@ -101,6 +104,19 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
                     log::info!("Tried to load already existing data : {}", id);
                 }
             }
+        }
+    }
+     ///Get data given its UID
+    pub fn get(&self, uid: u64) -> Result<V, String>{
+        let index = self.index.clone();
+        let index = index.lock().unwrap();
+        let pool = index.get(&uid).unwrap();
+        let db = self.dbmanager.clone();
+        let db = db.lock().unwrap();
+        let data : Vec<V> = db.exec_and_return(format!("SELECT * FROM {} WHERE id = {}", pool, uid), Params::Empty).unwrap();
+        match data.len(){
+            0 => Err(String::from("No data with given uid")),
+            _ => Ok(data[0].clone())
         }
     }
 
@@ -136,16 +152,32 @@ impl<'a, V : Data + FromRow + 'a> RuntimeStorage<V> where &'a V : Data{
         
     }
 
-    /// Store data in the pool given the pool name.
+    ///Generate uid
+    fn get_unused_id(&self) -> u64{
+        let index = self.index.clone();
+        let index = index.lock().unwrap();
+        let uid = {
+            let mut rd : u64 = rand::random();
+            while !&index.contains_key(&rd){
+                 rd = rand::random();
+            }
+            rd
+        };
+        uid
+    }
+
+    /// Store data in the pool given the pool name and return an uid representing the data. The uid is unique among all pools.
     /// Example
     /// ```rust
     /// runtime.store(data, String::from("pool_name"));
     /// ```
-    pub fn store(&mut self, data : V, pool_name : String)-> Result<(), String>{
+    pub fn store(&mut self, mut data : V, pool_name : String)-> Result<u64, String>{
         //Store data
+        let uid = self.get_unused_id();
         let pool = self.pools.clone().lock().unwrap().get(&pool_name).unwrap().clone();
         let pool = pool.lock().unwrap();
-        self.index.clone().lock().unwrap().insert(data.id(), pool.name());
+        data.set_uid(uid);
+        self.index.clone().lock().unwrap().insert(uid, pool.name());
         pool.insert(data)
         
     }
@@ -230,11 +262,12 @@ impl<V : Data + FromRow> DataPool<V>{
     /// let data = Data::new();
     /// dataPool.store(data, pool_name);
     /// ```
-    fn insert(&self, data : V) -> Result<(), String>{
+    fn insert(&self, data : V) -> Result<u64, String>{
         let mut runtime = self.runtime.lock().unwrap();
         if let Entry::Vacant(e) = runtime.entry(data.id()) {
+            let id = data.id();
             e.insert(data);
-            Ok(())
+            Ok(id)
         } else {
             Err(String::from("Id already in use"))
         }
@@ -274,3 +307,58 @@ impl<V : Data + FromRow> DataPool<V>{
         self.schema.clone()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::{sync::{Arc, Mutex}, clone};
+    use super::*;
+
+    #[derive(Clone)]
+    struct Lease {
+        name :String,
+        address : String,
+        uid : u64
+    }
+
+    impl Data for Lease{
+        fn id(&self) -> u64 {
+            self.uid.clone()
+        }
+        fn insert_statement(&self, place : String) -> String {
+            format!("INSERT INTO {} VALUE ( :id, :name, :address)", place)
+        }
+        fn set_uid(&mut self, uid : u64) {
+            self.uid = uid;
+        }
+        fn value(&self) -> params::Params {
+            let name = self.name.clone();
+            let uid = self.uid;
+            let address = self.address.clone();
+            params! {"id" => uid, "name" => name, "address" => address}
+        }
+    }
+    impl FromRow for Lease{
+        fn from_row(row: mysql::Row) -> Self
+            where
+                Self: Sized, {
+            todo!();
+        }
+        fn from_row_opt(row: mysql::Row) -> Result<Self, mysql::FromRowError>
+            where
+                Self: Sized {
+            todo!()
+        }
+    }
+
+    #[tokio::test]
+    async fn launch(){
+        let db = DbManager::new(String::from("dhcp"), String::from("frozenpeach"), String::from("poney"), String::from("127.0.0.1:2333"));
+    }
+
+    #[tokio::test]
+    async fn test() {
+    }
+
+
+}
+
