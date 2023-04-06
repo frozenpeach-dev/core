@@ -274,3 +274,59 @@ impl<V : Data + FromRow> DataPool<V>{
         self.schema.clone()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::{sync::{Arc, Mutex}, clone};
+    use super::*;
+
+    #[derive(Clone)]
+    struct Lease {
+        name :String,
+        address : String,
+        uid : u64
+    }
+
+    impl Data for Lease{
+        fn id(&self) -> u64 {
+            self.uid.clone()
+        }
+        fn insert_statement(&self, place : String) -> String {
+            format!("INSERT INTO {} VALUE ( :id, :name, :address)", place)
+        }
+        fn set_uid(&mut self, uid : u64) {
+            self.uid = uid;
+        }
+        fn value(&self) -> params::Params {
+            let name = self.name.clone();
+            let uid = self.uid;
+            let address = self.address.clone();
+            params! {"id" => uid, "name" => name, "address" => address}
+        }
+    }
+    impl FromRow for Lease{
+        fn from_row(row: mysql::Row) -> Self
+            where
+                Self: Sized, {
+            todo!();
+        }
+        fn from_row_opt(row: mysql::Row) -> Result<Self, mysql::FromRowError>
+            where
+                Self: Sized {
+            todo!()
+        }
+    }
+
+    #[tokio::test]
+    async fn launch(){
+        let db = DbManager::new(String::from("dhcp"), String::from("frozenpeach"), String::from("poney"), String::from("127.0.0.1:2333"));
+    }
+
+    #[tokio::test]
+    async fn test_runtime() {
+        RuntimeStorage::new();
+    }
+
+
+}
+
