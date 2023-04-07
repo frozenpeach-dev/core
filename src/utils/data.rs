@@ -10,8 +10,8 @@ use rand;
 pub trait Data {
     fn value(&self) -> params::Params;
     fn insert_statement(&self, place : String) -> String;
-    fn id(&self) -> u64;
-    fn set_uid(&mut self, uid : u64);
+    fn id(&self) -> u16;
+    fn set_uid(&mut self, uid : u16);
 }
 
 ///DbManager aims to manage MySql connections and interactions.
@@ -26,14 +26,14 @@ pub struct DbManager{
 pub struct RuntimeStorage<V : Data + FromRow>{
     pools : Arc<Mutex<HashMap<String, Arc<Mutex<DataPool<V>>>>>>,
     dbmanager : Arc<Mutex<DbManager>>,
-    index : Arc<Mutex<HashMap<u64, String>>>
+    index : Arc<Mutex<HashMap<u16, String>>>
 }
 
 ///`DataPool` is a high-level storage manager tha allows you to quickly access and store data, while ensuring your data are protected from code interruption with live MySql Database synchronization.
 pub struct DataPool<V : Data + FromRow> {
     name : String,
-    filters : Vec<fn(&u64, &V) -> bool>,
-    runtime : Arc<Mutex<HashMap<u64,V>>>,
+    filters : Vec<fn(&u16, &V) -> bool>,
+    runtime : Arc<Mutex<HashMap<u16,V>>>,
     schema : String
 }
 
@@ -69,7 +69,7 @@ impl DbManager {
     }
 
     ///Drop data having given id. A table must be given.
-    pub fn drop<T : Data>(&self, table : String, ids : Vec<u64>) -> Result<(), mysql::Error>{
+    pub fn drop<T : Data>(&self, table : String, ids : Vec<u16>) -> Result<(), mysql::Error>{
         //Drop data from db
         self.exec_and_drop(String::from("DELETE FROM :table WHERE id = :id"), params! {"table" => table, "id" => ids.iter().join(",")})
     }
@@ -84,7 +84,7 @@ impl DbManager {
 
 
 
-impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V> where &'a V : Data{
+impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V>{
 
     ///Load data from static mysql database.
     pub fn load(&mut self, database : Mutex<DbManager>){
@@ -106,8 +106,8 @@ impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V> where &'a V : Data{
             }
         }
     }
-     ///Get data given its UID
-    pub fn get(&self, uid: u64) -> Result<V, String>{
+     ///Get data from disk storage given its UID
+    pub fn get_from_disk(&self, uid: u16) -> Result<V, String>{
         let index = self.index.clone();
         let index = index.lock().unwrap();
         let pool = index.get(&uid).unwrap();
@@ -120,6 +120,19 @@ impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V> where &'a V : Data{
         }
     }
 
+    pub fn get(&self, uid : u16)-> Result<V, String>{
+        let index = self.index.clone();
+        let index = index.lock().unwrap();
+        let pool = index.get(&uid).unwrap();
+        let pools = self.pools.clone();
+        let pools = pools.lock().unwrap();
+        let pool = pools.get(pool).unwrap().clone();
+        let pool = pool.lock().unwrap();
+        let data = pool.get(uid).ok_or_else(|| String::from("No current data for given id..."));
+        data
+
+    }
+
     ///Synchronizes given pool with database : inserts missing data in database and remove old data 
     fn pool_sync(&'a self, pool : &Arc<Mutex<DataPool<V>>>) -> Result<(), mysql::Error>{
         //Sync database with runtime
@@ -127,11 +140,11 @@ impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V> where &'a V : Data{
         let pool = pool.clone();
         let pool = pool.lock().unwrap();
         //Compute ids stored on disk
-        let disk_ids:Vec<u64> = db.exec_and_return(format!("SELECT id FROM {} ", pool.name), Params::Empty).unwrap();
-        let disk_ids : HashSet<u64> = disk_ids.iter().cloned().collect();
+        let disk_ids:Vec<u16> = db.exec_and_return(format!("SELECT id FROM {} ", pool.name), Params::Empty).unwrap();
+        let disk_ids : HashSet<u16> = disk_ids.iter().cloned().collect();
         //Compute ids in runtime
         let runtime = pool.runtime.lock().unwrap();
-        let runtime_ids : HashSet<u64> = runtime.keys().cloned().collect();
+        let runtime_ids : HashSet<u16> = runtime.keys().cloned().collect();
         //Set differences
         let deprecated_ids = &disk_ids - &runtime_ids;
         let new_ids = &runtime_ids - &disk_ids;
@@ -153,12 +166,12 @@ impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V> where &'a V : Data{
     }
 
     ///Generate uid
-    fn get_unused_id(&self) -> u64{
+    fn get_unused_id(&self) -> u16{
         let index = self.index.clone();
         let index = index.lock().unwrap();
         let uid = {
-            let mut rd : u64 = rand::random();
-            while !&index.contains_key(&rd){
+            let mut rd : u16 = rand::random();
+            while (&index).contains_key(&rd){
                  rd = rand::random();
             }
             rd
@@ -171,7 +184,7 @@ impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V> where &'a V : Data{
     /// ```rust
     /// runtime.store(data, String::from("pool_name"));
     /// ```
-    pub fn store(&mut self, mut data : V, pool_name : String)-> Result<u64, String>{
+    pub fn store(&mut self, mut data : V, pool_name : String)-> Result<u16, String>{
         //Store data
         let uid = self.get_unused_id();
         let pool = self.pools.clone().lock().unwrap().get(&pool_name).unwrap().clone();
@@ -193,14 +206,14 @@ impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V> where &'a V : Data{
     /// let runtime = Arc::new(Mutex::new(runtime));
     /// let synchronizer = runtime.clone();
     /// tokio::spawn(async move {
-    ///     looop {
+    ///     loop {
     ///         time::sleep(duration).await;
     ///         synchronizer.lock().unwrap().sync();
     ///     }
     /// }).await;
     /// ```
     pub fn sync(&'a mut self){
-        let mut removed_overall:Vec<u64> = vec![];
+        let mut removed_overall:Vec<u16> = vec![];
         for pool in self.pools.clone().lock().unwrap().values() {
             //Run every sync task
             self.pool_sync(pool).unwrap();
@@ -230,13 +243,13 @@ impl<'a, V : Data + FromRow + 'a + Clone> RuntimeStorage<V> where &'a V : Data{
 
 }
 
-impl<V : Data + FromRow> DataPool<V>{
+impl<V : Data + FromRow + Clone> DataPool<V>{
     ///Iter over filters and drop data that return false when passed as argument to condition functions.
-    pub fn purge(&self) -> Vec<u64>{
-        let mut overall_removed: Vec<u64> = vec![];
+    pub fn purge(&self) -> Vec<u16>{
+        let mut overall_removed: Vec<u16> = vec![];
         log::info!("Purging pool {}", self.name);
         for filter in &self.filters {
-            let mut removed: Vec<u64> = vec![];
+            let mut removed: Vec<u16> = vec![];
             let mut data = self.runtime.lock().unwrap();
             for (k, v) in data.iter(){
                 if filter(&k,&v){
@@ -252,7 +265,7 @@ impl<V : Data + FromRow> DataPool<V>{
     }      
 
     ///Add filter to filter list.
-    pub fn add_filter(&mut self, filter : fn(&u64, &V) -> bool){
+    pub fn add_filter(&mut self, filter : fn(&u16, &V) -> bool){
         //Add filter to filters
         self.filters.push(filter);
     }
@@ -262,7 +275,7 @@ impl<V : Data + FromRow> DataPool<V>{
     /// let data = Data::new();
     /// dataPool.store(data, pool_name);
     /// ```
-    fn insert(&self, data : V) -> Result<u64, String>{
+    fn insert(&self, data : V) -> Result<u16, String>{
         let mut runtime = self.runtime.lock().unwrap();
         if let Entry::Vacant(e) = runtime.entry(data.id()) {
             let id = data.id();
@@ -273,8 +286,14 @@ impl<V : Data + FromRow> DataPool<V>{
         }
     }
 
+    fn get(&self, uid : u16) -> Option<V>{
+        let runtime = self.runtime.lock().unwrap();
+        let data = runtime.get(&uid).cloned();
+        data
+    }
+
     ///Drops data given its id.
-    fn drop(&self, id : &u64){
+    fn drop(&self, id : &u16){
         self.runtime.lock().unwrap().remove(id);
     }
 
@@ -310,24 +329,28 @@ impl<V : Data + FromRow> DataPool<V>{
 
 #[cfg(test)]
 mod test {
-    use std::{sync::{Arc, Mutex}, clone};
+
+    use std::{time::{Duration, Instant}, thread::sleep};
+
+    use tokio::time::sleep_until;
+
     use super::*;
 
-    #[derive(Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     struct Lease {
         name :String,
         address : String,
-        uid : u64
+        uid : u16
     }
 
     impl Data for Lease{
-        fn id(&self) -> u64 {
+        fn id(&self) -> u16 {
             self.uid.clone()
         }
         fn insert_statement(&self, place : String) -> String {
             format!("INSERT INTO {} VALUE ( :id, :name, :address)", place)
         }
-        fn set_uid(&mut self, uid : u64) {
+        fn set_uid(&mut self, uid : u16) {
             self.uid = uid;
         }
         fn value(&self) -> params::Params {
@@ -337,26 +360,145 @@ mod test {
             params! {"id" => uid, "name" => name, "address" => address}
         }
     }
+
+    // impl Data for &Lease{
+    //     fn id(&self) -> u16 {
+    //         self.uid.clone()
+    //     }
+    //     fn insert_statement(&self, place : String) -> String {
+    //         format!("INSERT INTO {} VALUE ( :id, :name, :address)", place)
+    //     }
+    //     fn set_uid(&mut self, uid : u16) {
+    //         self.uid = uid;
+    //     }
+    //     fn value(&self) -> params::Params {
+    //         let name = self.name.clone();
+    //         let uid = self.uid;
+    //         let address = self.address.clone();
+    //         params! {"id" => uid, "name" => name, "address" => address}
+    //     }
+    // }
+    
     impl FromRow for Lease{
         fn from_row(row: mysql::Row) -> Self
             where
                 Self: Sized, {
-            todo!();
+            let id : u16= row.get(0).unwrap();
+            let name:String = row.get(1).unwrap();
+            let address = row.get(2).unwrap();
+            Self { name, address, uid: id }
         }
+
         fn from_row_opt(row: mysql::Row) -> Result<Self, mysql::FromRowError>
             where
                 Self: Sized {
-            todo!()
+                    let id : u16= row.get(0).unwrap();
+                    let name:String = row.get(1).unwrap();
+                    let address :String= row.get(2).unwrap();
+                    Ok(Self { name, address, uid: id }) 
+            
         }
     }
 
-    #[tokio::test]
-    async fn launch(){
-        let db = DbManager::new(String::from("dhcp"), String::from("frozenpeach"), String::from("poney"), String::from("127.0.0.1:2333"));
+    async fn insert_retrieve_benchmark(bench : Arc<Mutex<RuntimeStorage<Lease>>>){
+        
+        let lease = Lease{
+            name : String::from("test"),
+            address : String::from("127.0.0.1"),
+            uid : 0
+        };
+        let nb = 1000u16;
+        let manager = bench.clone();
+        let ids = tokio::spawn(async move {
+            println!("Starting {} insertions...", nb);
+            let start = Instant::now();
+            let mut ids = vec![];
+            let mut manager = manager.lock().unwrap();
+            for i in 1..nb{
+                let id  = manager.store(lease.clone(), String::from("lease")).unwrap();
+                ids.push(id);
+            }
+            println!("Inserted {} data in {:.2?}",nb,  start.elapsed());
+            return ids
+        }).await.unwrap();
+        
+        // tokio::spawn(async move {
+        //     loop {
+        //         tokio::time::sleep(Duration::from_millis(10)).await;
+        //         sync.lock().unwrap().sync();
+        //     }
+        // });
+        let ids_disk = ids.clone();
+
+        let getter = bench.clone();
+        tokio::time::sleep(Duration::from_millis(12)).await;
+        let datas = tokio::spawn(async move {
+            let start = Instant::now();
+            let mut datas = vec![];
+            for id in ids{
+                datas.push(getter.lock().unwrap().get(id).unwrap());
+            }
+            println!("Retrieved from runtime in {:.2?}", start.elapsed());
+            datas
+            
+        }).await.unwrap();
+
+        let disk_getter = bench.clone();
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        let datas = tokio::spawn(async move {
+            let start = Instant::now();
+            println!("Retrieving {} datas from disk...", ids_disk.len());
+            let mut datas = vec![];
+            for id in ids_disk {
+                datas.push(disk_getter.lock().unwrap().get_from_disk(id).unwrap());
+            }
+            println!("Retrieved from disk in {:.2?}", start.elapsed());
+            datas
+            
+        }).await.unwrap();
     }
 
-    #[tokio::test]
-    async fn test() {
+    #[tokio::test(flavor = "multi_thread")]
+    async fn data_storage_test(){
+        let db = DbManager::new(String::from("dhcp"), String::from("frozenpeach"), String::from("poney"), String::from("127.0.0.1:3333"));
+        let storage: RuntimeStorage<Lease> = RuntimeStorage::new(Arc::new(Mutex::new(db)));
+        let storage = Arc::new(Mutex::new(storage));
+        let sync = storage.clone();
+        let manager = storage.clone();
+        
+        let lease = Lease{
+            name : String::from("test"),
+            address : String::from("127.0.0.1"),
+            uid : 0
+        };
+        
+        let id = tokio::spawn(async move {
+            let lease_pool = DataPool::new(String::from("lease"), String::from("(id BIGINT, name VARCHAR(255), address VARCHAR(255))"));
+            let mut manager = manager.lock().unwrap();
+            manager.add_pool(lease_pool);
+            let id  = manager.store(lease, String::from("lease")).unwrap();
+            return id
+        }).await.unwrap();
+        
+
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                sync.lock().unwrap().sync();
+            }
+        });
+        
+        let getter = storage.clone();
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let (data1, data2) = tokio::spawn(async move {
+            let data1 = getter.lock().unwrap().get_from_disk(id).unwrap();
+            let data2 = getter.lock().unwrap().get(id).unwrap();
+            (data1, data2)
+            
+        }).await.unwrap();
+        assert!(data1 == data2);
+        let bench = storage.clone();
+        insert_retrieve_benchmark(bench).await;
     }
 
 
