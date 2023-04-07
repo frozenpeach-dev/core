@@ -329,11 +329,7 @@ impl<V : Data + FromRow + Clone> DataPool<V>{
 
 #[cfg(test)]
 mod test {
-
-    use std::{time::{Duration, Instant}, thread::sleep};
-
-    use tokio::time::sleep_until;
-
+    use std::time::{Duration, Instant};
     use super::*;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -360,24 +356,6 @@ mod test {
             params! {"id" => uid, "name" => name, "address" => address}
         }
     }
-
-    // impl Data for &Lease{
-    //     fn id(&self) -> u16 {
-    //         self.uid.clone()
-    //     }
-    //     fn insert_statement(&self, place : String) -> String {
-    //         format!("INSERT INTO {} VALUE ( :id, :name, :address)", place)
-    //     }
-    //     fn set_uid(&mut self, uid : u16) {
-    //         self.uid = uid;
-    //     }
-    //     fn value(&self) -> params::Params {
-    //         let name = self.name.clone();
-    //         let uid = self.uid;
-    //         let address = self.address.clone();
-    //         params! {"id" => uid, "name" => name, "address" => address}
-    //     }
-    // }
     
     impl FromRow for Lease{
         fn from_row(row: mysql::Row) -> Self
@@ -407,6 +385,8 @@ mod test {
             address : String::from("127.0.0.1"),
             uid : 0
         };
+
+        //Insert nb lease
         let nb = 1000u16;
         let manager = bench.clone();
         let ids = tokio::spawn(async move {
@@ -414,25 +394,19 @@ mod test {
             let start = Instant::now();
             let mut ids = vec![];
             let mut manager = manager.lock().unwrap();
-            for i in 1..nb{
+            for _i in 0..nb{
                 let id  = manager.store(lease.clone(), String::from("lease")).unwrap();
                 ids.push(id);
             }
-            println!("Inserted {} data in {:.2?}",nb,  start.elapsed());
-            return ids
+            println!("Inserted {} data in {:.2?}",ids.len(),  start.elapsed());
+            ids
         }).await.unwrap();
-        
-        // tokio::spawn(async move {
-        //     loop {
-        //         tokio::time::sleep(Duration::from_millis(10)).await;
-        //         sync.lock().unwrap().sync();
-        //     }
-        // });
+
         let ids_disk = ids.clone();
 
+        //Retrieve from runtime
         let getter = bench.clone();
-        tokio::time::sleep(Duration::from_millis(12)).await;
-        let datas = tokio::spawn(async move {
+        tokio::spawn(async move {
             let start = Instant::now();
             let mut datas = vec![];
             for id in ids{
@@ -442,10 +416,11 @@ mod test {
             datas
             
         }).await.unwrap();
-
+        
+        //Retrieve from disk
+        tokio::time::sleep(Duration::from_millis(10)).await;
         let disk_getter = bench.clone();
-        tokio::time::sleep(Duration::from_millis(120)).await;
-        let datas = tokio::spawn(async move {
+        tokio::spawn(async move {
             let start = Instant::now();
             println!("Retrieving {} datas from disk...", ids_disk.len());
             let mut datas = vec![];
@@ -454,12 +429,13 @@ mod test {
             }
             println!("Retrieved from disk in {:.2?}", start.elapsed());
             datas
-            
         }).await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn data_storage_test(){
+    async fn test_data_storage(){
+        println!("");
+        //Create RuntimeStorage
         let db = DbManager::new(String::from("dhcp"), String::from("frozenpeach"), String::from("poney"), String::from("127.0.0.1:3333"));
         let storage: RuntimeStorage<Lease> = RuntimeStorage::new(Arc::new(Mutex::new(db)));
         let storage = Arc::new(Mutex::new(storage));
@@ -472,6 +448,7 @@ mod test {
             uid : 0
         };
         
+        //Create pool and insert data
         let id = tokio::spawn(async move {
             let lease_pool = DataPool::new(String::from("lease"), String::from("(id BIGINT, name VARCHAR(255), address VARCHAR(255))"));
             let mut manager = manager.lock().unwrap();
@@ -480,14 +457,15 @@ mod test {
             return id
         }).await.unwrap();
         
-
+        //Start sync
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                tokio::time::sleep(Duration::from_millis(10)).await;
                 sync.lock().unwrap().sync();
             }
         });
         
+        //Get from disk and from runtime
         let getter = storage.clone();
         tokio::time::sleep(Duration::from_millis(200)).await;
         let (data1, data2) = tokio::spawn(async move {
@@ -496,7 +474,11 @@ mod test {
             (data1, data2)
             
         }).await.unwrap();
+
+        //Ensure Runtime and Disk have same info
         assert!(data1 == data2);
+
+        //Run benchmark
         let bench = storage.clone();
         insert_retrieve_benchmark(bench).await;
     }
