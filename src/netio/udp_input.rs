@@ -1,3 +1,9 @@
+//! Simple [`Input`] implementation using the 
+//! UDP protocol. It reads bytes from a [`UdpSocket`]
+//! and turns them into a [`PacketType`] implementation
+//! by calling `from_raw_bytes`
+
+
 use std::io;
 
 use async_trait::async_trait;
@@ -5,16 +11,26 @@ use tokio::net::UdpSocket;
 
 use crate::core::{state_switcher::Input, packet::PacketType};
 
+/// `UdpInput` provides a simple implementation of 
+/// an [`Input`] using the UDP protocol.
 pub struct UdpInput {
     socket: UdpSocket
 } 
 
 impl UdpInput {
 
+    /// Binds the `UdpInput` listener to the provided address
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// let udp_input = UdpInput::start("0.0.0.0:53");
+    /// ```
     pub async fn start(addr: &str) -> Result<Self, std::io::Error> {
         Ok( Self{ socket: UdpSocket::bind(addr).await? } )
     }
 
+    /// Returns the next message received
     async fn get_next(&self) -> Result<Vec<u8>, io::Error >{
 
         let mut buf = [0u8; 65535];   
