@@ -4,7 +4,6 @@ use itertools::Itertools;
 use mysql::{self, Pool, params, prelude::{Queryable, FromValue, FromRow}, Params, Opts};
 use log;
 use rand;
-use derive_data::Storable;
 
 ///Trait implementing methods for data that will be stored in RuntimeStorage.
 pub trait Storable {
@@ -329,6 +328,7 @@ impl<V : Storable + FromRow + Clone> DataPool<V>{
 
 #[cfg(test)]
 mod test {
+    use derive_data::Storable;
     use std::time::{Duration, Instant};
     use super::*;
 
