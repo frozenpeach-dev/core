@@ -27,3 +27,6 @@ features = [
      "fast-rng",          
      "macro-diagnostics", 
 ]
+
+[dependencies.derive_data]
+path = "../derive_data"
