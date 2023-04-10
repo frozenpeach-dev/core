@@ -14,89 +14,6 @@ pub trait Storable {
     fn set_uid(&mut self, uid : u16);
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Lease {
-    name :String,
-    address : String,
-    uid : u16
-}
-
-impl Storable for Lease{
-    fn id(&self) -> u16 {
-        self.uid.clone()
-    }
-    fn insert_statement(&self, place : String) -> String {
-        format!("INSERT INTO {} VALUE ( :type, :id, :name, :address)", place)
-    }
-    fn set_uid(&mut self, uid : u16) {
-        self.uid = uid;
-    }
-    fn value(&self) -> params::Params {
-        let name = self.name.clone();
-        let uid = self.uid;
-        let address = self.address.clone();
-        params! {"type" => "lease", "id" => uid, "name" => name, "address" => address}
-    }
-}
-
-impl FromRow for Lease{
-    fn from_row(row: mysql::Row) -> Self
-        where
-            Self: Sized, {
-        let id : u16= row.get(1).unwrap();
-        let name:String = row.get(2).unwrap();
-        let address = row.get(3).unwrap();
-        Self { name, address, uid: id }
-    }
-
-    fn from_row_opt(row: mysql::Row) -> Result<Self, mysql::FromRowError>
-        where
-            Self: Sized {
-                let id : u16 = row.get(1).unwrap();
-                let name:String = row.get(2).unwrap();
-                let address :String= row.get(3).unwrap();
-                Ok(Self { name, address, uid: id }) 
-        
-    }
-}
-
-#[derive(Clone, Storable, PartialEq, Eq)]
-pub enum Data {
-    Lease(Lease),
-    Null,
-}
-
-impl FromRow for Data {
-    fn from_row(row: mysql::Row) -> Self
-        where
-            Self: Sized, {
-        let data : String = row.get(0).unwrap();
-        match data.as_str() {
-            "lease" => return Data::Lease(Lease::from_row(row)),
-            _ => Data::Null
-        }
-    }
-
-    fn from_row_opt(row: mysql::Row) -> Result<Self, mysql::FromRowError>
-        where
-            Self: Sized {
-        let data : String = row.get(0).unwrap();
-        match data.as_str() {
-            "lease" => {
-                let opt = Lease::from_row_opt(row);
-                match opt {
-                    Ok(lease) => return Ok(Data::Lease(lease)),
-                    Err(e) => return Err(e)
-                }
-            },
-            _ => Ok(Data::Null)
-        }
-    }
-}
-
-
-
-
 ///DbManager aims to manage MySql connections and interactions.
 pub struct DbManager{
     pub db_name : String,
@@ -106,17 +23,17 @@ pub struct DbManager{
 }
 
 ///RuntimeStorage manage storage. It is the interface between user and runtime/backend storage.
-pub struct RuntimeStorage{
-    pools : Arc<Mutex<HashMap<String, Arc<Mutex<DataPool>>>>>,
+pub struct RuntimeStorage<V : Storable + Clone>{
+    pools : Arc<Mutex<HashMap<String, Arc<Mutex<DataPool<V>>>>>>,
     dbmanager : Arc<Mutex<DbManager>>,
     index : Arc<Mutex<HashMap<u16, String>>>
 }
 
 ///`DataPool` is a high-level storage manager tha allows you to quickly access and store data, while ensuring your data are protected from code interruption with live MySql Database synchronization.
-pub struct DataPool{
+pub struct DataPool<V : Storable>{
     name : String,
-    filters : Vec<fn(&u16, &Data) -> bool>,
-    runtime : Arc<Mutex<HashMap<u16,Data>>>,
+    filters : Vec<fn(&u16, &V) -> bool>,
+    runtime : Arc<Mutex<HashMap<u16,V>>>,
     schema : String
 }
 
@@ -146,7 +63,7 @@ impl DbManager {
     }
 
     ///Insert data in a given table
-    pub fn insert(&self, data : &Data, place: String) -> Result<(), mysql::Error>{
+    pub fn insert<V : Storable>(&self, data : &V, place: String) -> Result<(), mysql::Error>{
         //Insert data in db
         self.exec_and_drop(data.insert_statement(place), data.value())
     }
@@ -167,7 +84,7 @@ impl DbManager {
 
 
 
-impl RuntimeStorage{
+impl<V : Storable + Clone + FromRow> RuntimeStorage<V>{
 
     ///Load data from static mysql database.
     pub fn load(&mut self, database : Mutex<DbManager>){
@@ -177,7 +94,7 @@ impl RuntimeStorage{
         for table in tables {
             let pool = DataPool::empty(table.clone());
             self.add_pool(pool);
-            let rows:Vec<Data> = db.exec_and_return(String::from("SELECT * FROM :table "), params! {"table" => table.clone()}).unwrap();
+            let rows:Vec<V> = db.exec_and_return(String::from("SELECT * FROM :table "), params! {"table" => table.clone()}).unwrap();
             for data in rows {
                 let id = data.id();
                 if !self.index.clone().lock().unwrap().contains_key(&data.id()){
@@ -190,20 +107,20 @@ impl RuntimeStorage{
         }
     }
      ///Get data from disk storage given its UID
-    pub fn get_from_disk(&self, uid: u16) -> Result<Data, String>{
+    pub fn get_from_disk(&self, uid: u16) -> Result<V, String>{
         let index = self.index.clone();
         let index = index.lock().unwrap();
         let pool = index.get(&uid).unwrap();
         let db = self.dbmanager.clone();
         let db = db.lock().unwrap();
-        let data : Vec<Data> = db.exec_and_return(format!("SELECT * FROM {} WHERE id = {}", pool, uid), Params::Empty).unwrap();
+        let data : Vec<V> = db.exec_and_return(format!("SELECT * FROM {} WHERE id = {}", pool, uid), Params::Empty).unwrap();
         match data.len(){
             0 => Err(String::from("No data with given uid")),
             _ => Ok(data[0].clone())
         }
     }
 
-    pub fn get(&self, uid : u16)-> Result<Data, String>{
+    pub fn get(&self, uid : u16)-> Result<V, String>{
         let index = self.index.clone();
         let index = index.lock().unwrap();
         let pool = index.get(&uid).unwrap();
@@ -217,7 +134,7 @@ impl RuntimeStorage{
     }
 
     ///Synchronizes given pool with database : inserts missing data in database and remove old data 
-    fn pool_sync(&self, pool : &Arc<Mutex<DataPool>>) -> Result<(), mysql::Error>{
+    fn pool_sync(&self, pool : &Arc<Mutex<DataPool<V>>>) -> Result<(), mysql::Error>{
         //Sync database with runtime
         let db = self.dbmanager.lock().unwrap();
         let pool = pool.clone();
@@ -267,7 +184,7 @@ impl RuntimeStorage{
     /// ```rust
     /// runtime.store(data, String::from("pool_name"));
     /// ```
-    pub fn store(&mut self, mut data : Data, pool_name : String)-> Result<u16, String>{
+    pub fn store(&mut self, mut data : V, pool_name : String)-> Result<u16, String>{
         //Store data
         let uid = self.get_unused_id();
         let pool = self.pools.clone().lock().unwrap().get(&pool_name).unwrap().clone();
@@ -316,7 +233,7 @@ impl RuntimeStorage{
     /// let pool = DataPool::new();
     /// runtime.add_pool(pool);
     /// ```
-    pub fn add_pool(&self, pool : DataPool) {
+    pub fn add_pool(&self, pool : DataPool<V>) {
         let mut pools = self.pools.lock().unwrap();
         let name = pool.name();
         let schema = pool.schema();
@@ -326,7 +243,7 @@ impl RuntimeStorage{
 
 }
 
-impl DataPool{
+impl<V : Storable + FromRow + Clone> DataPool<V>{
     ///Iter over filters and drop data that return false when passed as argument to condition functions.
     pub fn purge(&self) -> Vec<u16>{
         let mut overall_removed: Vec<u16> = vec![];
@@ -348,7 +265,7 @@ impl DataPool{
     }      
 
     ///Add filter to filter list.
-    pub fn add_filter(&mut self, filter : fn(&u16, &Data) -> bool){
+    pub fn add_filter(&mut self, filter : fn(&u16, &V) -> bool){
         //Add filter to filters
         self.filters.push(filter);
     }
@@ -358,7 +275,7 @@ impl DataPool{
     /// let data = Data::new();
     /// dataPool.store(data, pool_name);
     /// ```
-    fn insert(&self, data : Data) -> Result<u16, String>{
+    fn insert(&self, data : V) -> Result<u16, String>{
         let mut runtime = self.runtime.lock().unwrap();
         if let Entry::Vacant(e) = runtime.entry(data.id()) {
             let id = data.id();
@@ -369,7 +286,7 @@ impl DataPool{
         }
     }
 
-    fn get(&self, uid : u16) -> Option<Data>{
+    fn get(&self, uid : u16) -> Option<V>{
         let runtime = self.runtime.lock().unwrap();
         let data = runtime.get(&uid).cloned();
         data
@@ -414,7 +331,89 @@ impl DataPool{
 mod test {
     use std::time::{Duration, Instant};
     use super::*;
-    async fn insert_retrieve_benchmark(bench : Arc<Mutex<RuntimeStorage>>){
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Lease {
+        name :String,
+        address : String,
+        uid : u16
+    }
+
+    impl Storable for Lease{
+        fn id(&self) -> u16 {
+            self.uid.clone()
+        }
+        fn insert_statement(&self, place : String) -> String {
+            format!("INSERT INTO {} VALUE ( :type, :id, :name, :address)", place)
+        }
+        fn set_uid(&mut self, uid : u16) {
+            self.uid = uid;
+        }
+        fn value(&self) -> params::Params {
+            let name = self.name.clone();
+            let uid = self.uid;
+            let address = self.address.clone();
+            params! {"type" => "lease", "id" => uid, "name" => name, "address" => address}
+        }
+    }
+
+    impl FromRow for Lease{
+        fn from_row(row: mysql::Row) -> Self
+            where
+                Self: Sized, {
+            let id : u16= row.get(1).unwrap();
+            let name:String = row.get(2).unwrap();
+            let address = row.get(3).unwrap();
+            Self { name, address, uid: id }
+        }
+
+        fn from_row_opt(row: mysql::Row) -> Result<Self, mysql::FromRowError>
+            where
+                Self: Sized {
+                    let id : u16 = row.get(1).unwrap();
+                    let name:String = row.get(2).unwrap();
+                    let address :String= row.get(3).unwrap();
+                    Ok(Self { name, address, uid: id }) 
+            
+        }
+    }
+
+    #[derive(Clone, Storable, PartialEq, Eq)]
+    pub enum Data {
+        Lease(Lease),
+        Null,
+    }
+
+    impl FromRow for Data {
+        fn from_row(row: mysql::Row) -> Self
+            where
+                Self: Sized, {
+            let data : String = row.get(0).unwrap();
+            match data.as_str() {
+                "lease" => return Data::Lease(Lease::from_row(row)),
+                _ => Data::Null
+            }
+        }
+
+        fn from_row_opt(row: mysql::Row) -> Result<Self, mysql::FromRowError>
+            where
+                Self: Sized {
+            let data : String = row.get(0).unwrap();
+            match data.as_str() {
+                "lease" => {
+                    let opt = Lease::from_row_opt(row);
+                    match opt {
+                        Ok(lease) => return Ok(Data::Lease(lease)),
+                        Err(e) => return Err(e)
+                    }
+                },
+                _ => Ok(Data::Null)
+            }
+        }
+    }
+
+
+    async fn insert_retrieve_benchmark(bench : Arc<Mutex<RuntimeStorage<Data>>>){
         
         let lease = Lease{
             name : String::from("test"),
@@ -474,7 +473,7 @@ mod test {
         println!("");
         //Create RuntimeStorage
         let db = DbManager::new(String::from("dhcp"), String::from("frozenpeach"), String::from("poney"), String::from("127.0.0.1:3333"));
-        let storage: RuntimeStorage = RuntimeStorage::new(Arc::new(Mutex::new(db)));
+        let storage: RuntimeStorage<Data> = RuntimeStorage::new(Arc::new(Mutex::new(db)));
         let storage = Arc::new(Mutex::new(storage));
         let sync = storage.clone();
         let manager = storage.clone();
