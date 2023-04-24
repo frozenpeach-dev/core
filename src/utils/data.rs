@@ -287,8 +287,7 @@ impl<V : Storable + FromRow + Clone> DataPool<V>{
 
     fn get(&self, uid : u16) -> Option<V>{
         let runtime = self.runtime.lock().unwrap();
-        let data = runtime.get(&uid).cloned();
-        data
+        runtime.get(&uid).cloned()
     }
 
     ///Drops data given its id.
