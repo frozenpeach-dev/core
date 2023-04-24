@@ -109,7 +109,7 @@ impl<V : Storable + Clone + FromRow> RuntimeStorage<V>{
     pub fn get_from_disk(&self, uid: u16) -> Result<V, String>{
         let index = self.index.clone();
         let index = index.lock().unwrap();
-        let pool = index.get(&uid).unwrap();
+        let pool = index.get(&uid).ok_or_else(|| String::from("UID doesn't exist in any pool);
         let db = self.dbmanager.clone();
         let db = db.lock().unwrap();
         let data : Vec<V> = db.exec_and_return(format!("SELECT * FROM {} WHERE id = {}", pool, uid), Params::Empty).unwrap();
