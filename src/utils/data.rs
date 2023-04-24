@@ -139,7 +139,7 @@ impl<V : Storable + Clone + FromRow> RuntimeStorage<V>{
         let pool = pool.clone();
         let pool = pool.lock().unwrap();
         //Compute ids stored on disk
-        let disk_ids:Vec<u16> = db.exec_and_return(format!("SELECT id FROM {} ", pool.name), Params::Empty).unwrap();
+        let disk_ids:Vec<u16> = db.exec_and_return(format!("SELECT id FROM {} ", pool.name), Params::Empty)?;
         let disk_ids : HashSet<u16> = disk_ids.iter().cloned().collect();
         //Compute ids in runtime
         let runtime = pool.runtime.lock().unwrap();
