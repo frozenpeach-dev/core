@@ -8,7 +8,7 @@
 //! and a [`HookRegistry`] to store [`Hook`] and services.
 
 
-use std::{collections::{HashMap, hash_map::Entry}, sync::{Arc, Mutex}};
+use std::{collections::{HashMap, hash_map::Entry}, sync::{Arc, Mutex, RwLock}};
 
 use itertools::Itertools;
 use log::{trace, debug};
@@ -19,7 +19,7 @@ use crate::core::{state::PacketState, errors::HookError, packet::{PacketType, Pa
 
 use super::{typemap::TypeMap, flags::HookFlag};
 
-pub struct HookClosure<T: PacketType, U: PacketType>(pub Box<dyn Fn(Arc<Mutex<TypeMap>>, &mut PacketContext<T, U>) -> Result<isize, HookError>>);
+pub struct HookClosure<T: PacketType, U: PacketType>(pub Box<dyn Fn(Arc<RwLock<TypeMap>>, &mut PacketContext<T, U>) -> Result<isize, HookError>>);
 unsafe impl<T: PacketType, U: PacketType> Send for HookClosure<T, U>{}
 unsafe impl<T: PacketType, U: PacketType> Sync for HookClosure<T, U>{}
 
@@ -148,7 +148,7 @@ impl<T: PacketType + Send, U: PacketType + Send> Hook<T, U> {
 pub struct HookRegistry<T: PacketType + Send, U: PacketType + Send> {
 
     registry: HashMap<PacketState, HashMap<Uuid, Hook<T, U>>>,
-    services: Arc<Mutex<TypeMap>>,
+    services: Arc<RwLock<TypeMap>>,
     exec_order: HashMap<PacketState, Vec<Uuid>>,
     need_update: bool
 
@@ -175,7 +175,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
     /// let registry = HookRegistry::new();
     /// ```
     pub fn new() -> Self {
-        Self { registry: HashMap::new(), services: Arc::new(Mutex::new(TypeMap::new())), exec_order: HashMap::new(), need_update: true}
+        Self { registry: HashMap::new(), services: Arc::new(RwLock::new(TypeMap::new())), exec_order: HashMap::new(), need_update: true}
     }
 
     /// Execute every registered [`Hook`] on the given [`PacketContext`] 
@@ -284,7 +284,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
     /// [`Send`] and [`Sync`]
 
     pub fn register_service<V: Send + Sync + 'static>(&mut self, service: V) {
-        self.services.lock().expect("Services mutex was poisonned")
+        self.services.try_write().expect("Services mutex was poisonned")
             .insert(Arc::new(service));
     }
 

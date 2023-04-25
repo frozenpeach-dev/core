@@ -7,7 +7,7 @@ use std::fmt::Display;
 #[derive(Debug, Clone, Copy)]
 pub struct HookError(&'static str);
 impl HookError {
-    pub(crate) fn new(code: &'static str) -> Self {
+    pub fn new(code: &'static str) -> Self {
         Self(code)
     }
 }
