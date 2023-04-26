@@ -300,7 +300,7 @@ impl<V : Storable + FromRow + Clone> DataPool<V>{
     }
 
     ///Drops data given its id.
-    fn drop(&self, id : &u16){
+    fn delete(&self, id : &u16){
         self.runtime.lock().unwrap().remove(id);
     }
 
