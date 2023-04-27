@@ -333,6 +333,7 @@ impl<T: PacketType + Send, U: PacketType + Send> HookRegistry<T, U> {
 mod tests {
 
     use super::*;
+    #[derive(Clone)]
     struct A {
         name: usize
     }
