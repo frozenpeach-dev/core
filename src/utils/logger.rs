@@ -34,7 +34,7 @@ pub fn init_logger(app_name: impl AsRef<str>, verbosity: u64) -> Result<(), fern
     .level_for(app_name.as_ref().to_string(), LevelFilter::Trace)
     .chain(std::io::stdout());
 
-    let log_file_root = format!("{}/{}.{}", log_root.clone(), app_name.as_ref().to_string(), chrono::Utc::now().format("%Y_%m_%d"));
+    let log_file_root = format!("{}/{}.{}", log_root, app_name.as_ref(), chrono::Utc::now().format("%Y_%m_%d"));
 
     let out_file_dispatch = fern::Dispatch::new()
         .level(LevelFilter::Off)

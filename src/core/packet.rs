@@ -1,7 +1,7 @@
 //! Defines an abstract representation of the data
 //! that can be processed, through a [`PacketType`]
 //!
-//! These types are then encapsulated in a 
+//! These types are then encapsulated in a
 //! [`PacketContext`], which will be enriched by the
 //! [`Hook`] to create a valid output packet.
 
@@ -22,7 +22,7 @@ pub trait PacketType: Clone {
 /// enriched with data through execution of [`Hook`]
 ///
 /// It is identified uniquely across the program using its [`Uuid`],
-/// and it holds a [`PacketState`]. Through [`Hook`] executions, it 
+/// and it holds a [`PacketState`]. Through [`Hook`] executions, it
 /// will undergo several successive state transitions.
 
 pub struct PacketContext<T : PacketType, U: PacketType> {
@@ -100,7 +100,7 @@ impl<T: PacketType, U: PacketType> PacketContext<T, U> {
     pub fn get_input(&self) -> &T {
         &self.input_packet
     }
-    /// Returns a mutable reference to the 
+    /// Returns a mutable reference to the
     /// current output packet contained in the context
     ///
     /// # Examples:
@@ -112,7 +112,7 @@ impl<T: PacketType, U: PacketType> PacketContext<T, U> {
     pub fn get_mut_output(&mut self) -> &mut U {
         &mut self.output_packet
     }
-    /// Returns a mutable reference to the 
+    /// Returns a mutable reference to the
     /// current input packet contained in the context
     ///
     /// # Examples:
@@ -125,13 +125,13 @@ impl<T: PacketType, U: PacketType> PacketContext<T, U> {
         &mut self.input_packet
     }
 
-    /// Converts the contained input packet 
+    /// Converts the contained input packet
     /// to its raw bytes representation
     pub fn input_to_raw(&self) -> &[u8] {
         self.input_packet.to_raw_bytes()
     }
 
-    /// Converts the contained output packet 
+    /// Converts the contained output packet
     /// to its raw bytes representation
     pub fn output_to_raw(&self) -> &[u8]{
         self.output_packet.to_raw_bytes()
@@ -159,4 +159,3 @@ impl<T: PacketType, U: PacketType> From<T> for PacketContext<T, U> {
         Self { time: Utc::now(), id: Uuid::new_v4(), state: PacketState::Received, input_packet: value, output_packet: U::empty() }
     }
 }
-

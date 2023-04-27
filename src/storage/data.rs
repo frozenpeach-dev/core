@@ -141,7 +141,7 @@ impl<V : Storable + Clone + FromRow> RuntimeStorage<V>{
 
     }
 
-    ///Synchronizes given pool with database : inserts missing data in database and remove old data 
+    ///Synchronizes given pool with database : inserts missing data in database and remove old data
     fn pool_sync(&self, pool : &Arc<Mutex<DataPool<V>>>) -> Result<(), mysql::Error>{
         //Sync database with runtime
         let db = self.dbmanager.lock().unwrap();
@@ -170,7 +170,7 @@ impl<V : Storable + Clone + FromRow> RuntimeStorage<V>{
         } else {
             Ok(())
         }
-        
+
     }
 
     ///Generate uid
@@ -200,7 +200,7 @@ impl<V : Storable + Clone + FromRow> RuntimeStorage<V>{
         data.set_uid(uid);
         self.index.clone().lock().unwrap().insert(uid, pool.name());
         pool.insert(data)
-        
+
     }
 
     pub fn new(db : Arc<Mutex<DbManager>>) -> Self{
@@ -228,7 +228,7 @@ impl<V : Storable + Clone + FromRow> RuntimeStorage<V>{
             //Filter data
             let mut removed = pool.clone().lock().unwrap().purge();
             removed_overall.append(&mut removed);
-            
+
         }
         for k in removed_overall {
             self.index.clone().lock().unwrap().remove(&k);
@@ -270,7 +270,7 @@ impl<V : Storable + FromRow + Clone> DataPool<V>{
             overall_removed.append(& mut removed);
         }
         overall_removed
-    }      
+    }
 
     ///Add filter to filter list.
     pub fn add_filter(&mut self, filter : fn(&u16, &V) -> bool){
@@ -381,8 +381,8 @@ mod test {
                     let id : u16 = row.get(1).unwrap();
                     let name:String = row.get(2).unwrap();
                     let address :String= row.get(3).unwrap();
-                    Ok(Self { name, address, uid: id }) 
-            
+                    Ok(Self { name, address, uid: id })
+
         }
     }
 
@@ -422,7 +422,7 @@ mod test {
 
 
     async fn insert_retrieve_benchmark(bench : Arc<Mutex<RuntimeStorage<Data>>>){
-        
+
         let lease = Lease{
             name : String::from("test"),
             address : String::from("127.0.0.1"),
@@ -458,9 +458,9 @@ mod test {
             }
             println!("Retrieved from runtime in {:.2?}", start.elapsed());
             datas
-            
+
         }).await.unwrap();
-        
+
         //Retrieve from disk
         tokio::time::sleep(Duration::from_millis(10)).await;
         let disk_getter = bench.clone();
@@ -485,14 +485,14 @@ mod test {
         let storage = Arc::new(Mutex::new(storage));
         let sync = storage.clone();
         let manager = storage.clone();
-        
+
         let lease = Lease{
             name : String::from("test"),
             address : String::from("127.0.0.1"),
             uid : 0
         };
         let lease = Data::Lease(lease);
-        
+
         //Create pool and insert data
         let id = tokio::spawn(async move {
             let lease_pool = DataPool::new(String::from("lease"), String::from("(id BIGINT, name VARCHAR(255), address VARCHAR(255))"));
@@ -501,7 +501,7 @@ mod test {
             let id  = manager.store(lease, String::from("lease")).unwrap();
             return id
         }).await.unwrap();
-        
+
         //Start sync
         tokio::spawn(async move {
             loop {
@@ -509,7 +509,7 @@ mod test {
                 sync.lock().unwrap().sync();
             }
         });
-        
+
         //Get from disk and from runtime
         let getter = storage.clone();
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -517,7 +517,7 @@ mod test {
             let data1 = getter.lock().unwrap().get_from_disk(id).unwrap();
             let data2 = getter.lock().unwrap().get(id).unwrap();
             (data1, data2)
-            
+
         }).await.unwrap();
 
         //Ensure Runtime and Disk have same info
@@ -530,4 +530,3 @@ mod test {
 
 
 }
-
