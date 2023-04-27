@@ -109,7 +109,7 @@ impl<V : Storable + Clone + FromRow> RuntimeStorage<V>{
     pub fn get_from_disk(&self, uid: u16) -> Result<V, String>{
         let index = self.index.clone();
         let index = index.lock().unwrap();
-        let pool = index.get(&uid).ok_or_else(|| String::from("UID doesn't exist in any pool);
+        let pool = index.get(&uid).ok_or_else(|| String::from("UID doesn't exist in any pool"))?;
         let db = self.dbmanager.clone();
         let db = db.lock().unwrap();
         let data : Vec<V> = db.exec_and_return(format!("SELECT * FROM {} WHERE id = {}", pool, uid), Params::Empty).unwrap();
@@ -117,6 +117,15 @@ impl<V : Storable + Clone + FromRow> RuntimeStorage<V>{
             0 => Err(String::from("No data with given uid")),
             _ => Ok(data[0].clone())
         }
+    }
+
+    /// Delete data given its id
+    pub fn delete(&mut self, id: u16, pool_name : String) {
+        let pools = self.pools.clone();
+        let pools = pools.lock().unwrap();
+        let pool = pools.get(&pool_name).unwrap().clone();
+        let pool = pool.lock().unwrap();
+        pool.delete(&id)
     }
 
     pub fn get(&self, uid : u16)-> Result<V, String>{
@@ -291,7 +300,7 @@ impl<V : Storable + FromRow + Clone> DataPool<V>{
     }
 
     ///Drops data given its id.
-    fn drop(&self, id : &u16){
+    fn delete(&self, id : &u16){
         self.runtime.lock().unwrap().remove(id);
     }
 
