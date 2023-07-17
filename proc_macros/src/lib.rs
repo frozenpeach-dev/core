@@ -15,7 +15,7 @@ pub fn derive_storable(input : TokenStream) -> TokenStream{
         Data::Enum(e) => {
             let mut enum_id = vec![];
             let variants = e.variants;
-            for v in variants.clone().into_iter().filter(|v|v.ident.to_string() != "Null") {
+            for v in variants.clone().into_iter().filter(|v| v.ident != "Null") {
                 let name = v.ident;
                 let quote = quote! {
                     Data::#name(d) => d.id(),
@@ -33,7 +33,7 @@ pub fn derive_storable(input : TokenStream) -> TokenStream{
             enum_token.push(quote);
 
             let mut enum_uid = vec![];
-            for v in variants.clone().into_iter().filter(|v|v.ident.to_string() != "Null") {
+            for v in variants.clone().into_iter().filter(|v| v.ident != "Null") {
                 let name = v.ident;
                 let quote = quote! {
                     Data::#name(d) => d.set_uid(uid),
@@ -51,7 +51,7 @@ pub fn derive_storable(input : TokenStream) -> TokenStream{
             enum_token.push(quote);
 
             let mut enum_insert = vec![];
-            for v in variants.clone().into_iter().filter(|v|v.ident.to_string() != "Null") {
+            for v in variants.clone().into_iter().filter(|v| v.ident != "Null") {
                 let name = v.ident;
                 let quote = quote! {
                     Data::#name(d) => d.insert_statement(place),
@@ -69,7 +69,7 @@ pub fn derive_storable(input : TokenStream) -> TokenStream{
             enum_token.push(quote);
 
             let mut enum_value = vec![];
-            for v in variants.clone().into_iter().filter(|v|v.ident.to_string() != "Null") {
+            for v in variants.clone().into_iter().filter(|v| v.ident != "Null") {
                 let name = v.ident;
                 let quote = quote! {
                     Data::#name(d) => d.value()
