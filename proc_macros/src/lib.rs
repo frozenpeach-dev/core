@@ -1,9 +1,3 @@
-pub mod hooks;
-pub mod netio;
-pub mod core;
-pub mod utils;
-pub mod storage;
-
 extern crate proc_macro;
 
 use proc_macro::{TokenStream, Ident};
@@ -98,9 +92,9 @@ pub fn derive_storable(input : TokenStream) -> TokenStream{
             };
 
             TokenStream::from(token)
-
+            
         },
         _ => panic!("Not yet implemented for this type...")
     }
-
+    
 }

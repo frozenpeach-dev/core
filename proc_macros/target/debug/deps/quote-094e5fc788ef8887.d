@@ -1,0 +1,11 @@
+/Users/sleider/dev/FrozenPeach/fp_core/proc_macros/target/debug/deps/quote-094e5fc788ef8887.rmeta: /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/lib.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/ext.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/format.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/ident_fragment.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/to_tokens.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/runtime.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/spanned.rs
+
+/Users/sleider/dev/FrozenPeach/fp_core/proc_macros/target/debug/deps/quote-094e5fc788ef8887.d: /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/lib.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/ext.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/format.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/ident_fragment.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/to_tokens.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/runtime.rs /Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/spanned.rs
+
+/Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/lib.rs:
+/Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/ext.rs:
+/Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/format.rs:
+/Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/ident_fragment.rs:
+/Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/to_tokens.rs:
+/Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/runtime.rs:
+/Users/sleider/.cargo/registry/src/index.crates.io-6f17d22bba15001f/quote-1.0.31/src/spanned.rs:
