@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Test
+    name: cargo-test-x86_64-linux
     runs-on: self-hosted
     steps:
       - name: Checkout source code
@@ -33,7 +33,7 @@ jobs:
           args: --all --all-features
 
   miri:
-    name: miri
+    name: cargo-miri-x86_64-linux
     runs-on: self-hosted
     steps:
       - name: Checkout source code
