@@ -1,7 +1,8 @@
 extern crate proc_macro;
 
 use proc_macro::{TokenStream, Ident};
-use syn::{parse_macro_input, DeriveInput, Data, export::quote::quote};
+use syn::{parse_macro_input, DeriveInput, Data};
+use quote::quote;
 
 
 #[proc_macro_derive(Storable)]
@@ -92,9 +93,9 @@ pub fn derive_storable(input : TokenStream) -> TokenStream{
             };
 
             TokenStream::from(token)
-            
+
         },
         _ => panic!("Not yet implemented for this type...")
     }
-    
+
 }
