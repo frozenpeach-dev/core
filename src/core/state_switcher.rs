@@ -6,12 +6,18 @@
 //! used to gather incoming data and dispatch
 //! outgoing one.
 
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst, AtomicBool}};
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
 
-use async_trait::async_trait;
 use crate::hooks::hook_registry::HookRegistry;
+use async_trait::async_trait;
 
-use super::{packet::{PacketType, PacketContext}, state::PacketState};
+use super::{
+    packet::{PacketContext, PacketType},
+    state::PacketState,
+};
 
 #[async_trait]
 pub trait Output<T: PacketType>: Send + Sync {
@@ -30,35 +36,44 @@ pub trait Input<T: PacketType>: Send + Sync {
 /// - Dispatch the packet using an [`Output`]
 
 pub struct StateSwitcher<T: PacketType + Send + 'static, U: PacketType + Send + 'static> {
-    registry: Arc<HookRegistry<T, U>>, 
+    registry: Arc<HookRegistry<T, U>>,
     output: Arc<Box<dyn Output<U>>>,
     input: Arc<Box<dyn Input<T>>>,
     dropped: Arc<AtomicUsize>,
-    running: Arc<AtomicBool> 
+    running: Arc<AtomicBool>,
 }
 
 unsafe impl<T: PacketType + Send, U: PacketType + Send> Sync for StateSwitcher<T, U> {}
 
 impl<T: PacketType + Send, U: PacketType + Send> StateSwitcher<T, U> {
-
-
     /// Crates a new `StateSwitcher` from
     /// a [`HookRegistry`], an [`Input`] from which
     /// it will create the [`PacketContext`], and an [`Output`]
     /// to send the pakets that went through the [`Hook`]
     ///
-    /// # Examples: 
+    /// # Examples:
     ///
     /// ```
     /// let state_switcher = StateSwitcher::new(input, output, registry);
     /// ```
-    pub fn new(input: Box<dyn Input<T>>, output: Box<dyn Output<U>>, registry: HookRegistry<T, U>, kill_switch: Arc<AtomicBool>) -> Self {
-        Self { registry: Arc::new(registry), output: Arc::new(output), input: Arc::new(input), dropped: Arc::new(AtomicUsize::new(0)), running: kill_switch }
+    pub fn new(
+        input: Box<dyn Input<T>>,
+        output: Box<dyn Output<U>>,
+        registry: HookRegistry<T, U>,
+        kill_switch: Arc<AtomicBool>,
+    ) -> Self {
+        Self {
+            registry: Arc::new(registry),
+            output: Arc::new(output),
+            input: Arc::new(input),
+            dropped: Arc::new(AtomicUsize::new(0)),
+            running: kill_switch,
+        }
     }
 
     /// Initiate the state switching process.
-    /// Usually, it should be the main loop 
-    /// of the program. 
+    /// Usually, it should be the main loop
+    /// of the program.
     ///
     /// It gather incoming packet from the [`Input`]
     /// endlessly, make those packets go through
@@ -72,25 +87,26 @@ impl<T: PacketType + Send, U: PacketType + Send> StateSwitcher<T, U> {
     /// state_switcher.start().await;
     /// ```
     pub async fn start(&self) {
-
         loop {
-
             if !self.running.load(SeqCst) {
                 break;
             }
 
             let packet = match self.input.get().await {
                 Ok(pak) => pak,
-                Err(_) => { continue; }
+                Err(_) => {
+                    continue;
+                }
             };
             let mut context = PacketContext::from(packet);
             let registry = self.registry.clone();
             let output = self.output.clone();
             let drops = self.dropped.clone();
-            
-            tokio::spawn(async move { 
 
-                for state in enum_iterator::all::<PacketState>().filter(|x| *x != PacketState::Failure) {
+            tokio::spawn(async move {
+                for state in
+                    enum_iterator::all::<PacketState>().filter(|x| *x != PacketState::Failure)
+                {
                     if state == PacketState::Failure {
                         continue;
                     }
@@ -98,26 +114,25 @@ impl<T: PacketType + Send, U: PacketType + Send> StateSwitcher<T, U> {
                     match registry.run_hooks(&mut context) {
                         Ok(_) => (),
                         Err(_) => {
-                            drops.store(drops.load(SeqCst) + 1, SeqCst); 
+                            drops.store(drops.load(SeqCst) + 1, SeqCst);
                         }
                     };
                 }
-                    
+
                 let output_packet = context.drop();
                 let bytes_len = output_packet.to_raw_bytes().len();
-                let success = output.send(output_packet)
+                let success = output
+                    .send(output_packet)
                     .await
                     .ok()
-                    .map(|len| { len == bytes_len })
+                    .map(|len| len == bytes_len)
                     .unwrap_or(false);
 
                 if !success {
                     drops.store(drops.load(SeqCst) + 1, SeqCst);
                 }
             });
-
-        }   
-
+        }
     }
 
     /// Returns the number of packet dropped
@@ -127,8 +142,7 @@ impl<T: PacketType + Send, U: PacketType + Send> StateSwitcher<T, U> {
     pub fn drop_count(&self) -> usize {
         self.dropped.load(SeqCst)
     }
-
-} 
+}
 
 #[cfg(test)]
 mod tests {
@@ -136,13 +150,16 @@ mod tests {
     use std::time::Duration;
     use tokio::time::sleep;
 
-    use crate::hooks::{hook_registry::{HookClosure, Hook}, flags::HookFlag};
+    use crate::hooks::{
+        flags::HookFlag,
+        hook_registry::{Hook, HookClosure},
+    };
 
     use super::*;
 
     #[derive(Clone, Copy)]
     struct A {
-        name: usize
+        name: usize,
     }
     impl PacketType for A {
         fn empty() -> Self {
@@ -153,7 +170,7 @@ mod tests {
         }
 
         fn to_raw_bytes(&self) -> &[u8] {
-            &[0u8; 1] 
+            &[0u8; 1]
         }
     }
     impl AsRef<[u8]> for A {
@@ -177,53 +194,75 @@ mod tests {
         async fn send(&self, packet: A) -> Result<usize, std::io::Error> {
             if packet.name == 2 {
                 Ok(1)
-            }
-            else {
+            } else {
                 Ok(0)
             }
-        } 
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_exec_stack() {
         let mut registry: HookRegistry<A, A> = HookRegistry::new();
-        registry.register_hook(PacketState::Received, Hook::new(String::from("test_hook"), HookClosure(Box::new(|_, packet: &mut PacketContext<A, A>| {
-            packet.get_mut_output().name = 2;
-            Ok(1)
-        })), Vec::default()));
-        let input = SimpleInput{};
-        let output = SimpleOutput{};
+        registry.register_hook(
+            PacketState::Received,
+            Hook::new(
+                String::from("test_hook"),
+                HookClosure(Box::new(|_, packet: &mut PacketContext<A, A>| {
+                    packet.get_mut_output().name = 2;
+                    Ok(1)
+                })),
+                Vec::default(),
+            ),
+        );
+        let input = SimpleInput {};
+        let output = SimpleOutput {};
 
         let switch = Arc::new(AtomicBool::new(true));
 
-        let state_switcher = StateSwitcher::new(Box::new(input), Box::new(output), registry, switch.clone());
+        let state_switcher =
+            StateSwitcher::new(Box::new(input), Box::new(output), registry, switch.clone());
 
-        tokio::spawn(async move{
+        tokio::spawn(async move {
             std::thread::sleep(Duration::from_secs(1));
             switch.store(false, SeqCst);
         });
         state_switcher.start().await;
 
-        assert!(state_switcher.drop_count() == 0);
+        assert_eq!(state_switcher.drop_count(), 0);
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_state_switching() {
         let mut registry: HookRegistry<A, A> = HookRegistry::new();
-        registry.register_hook(PacketState::Received, Hook::new(String::from("test_hook"), HookClosure(Box::new(|_, packet: &mut PacketContext<A, A>| {
-            packet.get_mut_output().name = 5;
-            Ok(1)
-        })), vec![HookFlag::Fatal]));
-        registry.register_hook(PacketState::Prepared, Hook::new(String::from("test_hook"), HookClosure(Box::new(|_, packet: &mut PacketContext<A, A>| {
-            assert!(packet.get_output().name == 5);
-            packet.get_mut_output().name = 2;
-            Ok(1)
-        })), vec![HookFlag::Fatal]));
-        let input = SimpleInput{};
-        let output = SimpleOutput{};
+        registry.register_hook(
+            PacketState::Received,
+            Hook::new(
+                String::from("test_hook"),
+                HookClosure(Box::new(|_, packet: &mut PacketContext<A, A>| {
+                    packet.get_mut_output().name = 5;
+                    Ok(1)
+                })),
+                vec![HookFlag::Fatal],
+            ),
+        );
+        registry.register_hook(
+            PacketState::Prepared,
+            Hook::new(
+                String::from("test_hook"),
+                HookClosure(Box::new(|_, packet: &mut PacketContext<A, A>| {
+                    assert_eq!(packet.get_output().name, 5);
+                    packet.get_mut_output().name = 2;
+                    Ok(1)
+                })),
+                vec![HookFlag::Fatal],
+            ),
+        );
+        let input = SimpleInput {};
+        let output = SimpleOutput {};
 
         let switch = Arc::new(AtomicBool::new(true));
-        let state_switcher = StateSwitcher::new(Box::new(input), Box::new(output), registry, switch.clone());
+        let state_switcher =
+            StateSwitcher::new(Box::new(input), Box::new(output), registry, switch.clone());
 
         tokio::spawn(async move {
             sleep(Duration::from_secs(1)).await;
@@ -231,9 +270,6 @@ mod tests {
         });
         state_switcher.start().await;
 
-        assert!(state_switcher.drop_count() == 0);
+        assert_eq!(state_switcher.drop_count(), 0);
     }
-
-    
-        
 }

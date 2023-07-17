@@ -5,7 +5,7 @@
 //! [`PacketContext`], which will be enriched by the
 //! [`Hook`] to create a valid output packet.
 
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
 use super::state::PacketState;
@@ -13,7 +13,7 @@ use super::state::PacketState;
 pub trait PacketType: Clone {
     fn to_raw_bytes(&self) -> &[u8];
     fn empty() -> Self;
-    fn from_raw_bytes(raw_data : &[u8]) -> Self;
+    fn from_raw_bytes(raw_data: &[u8]) -> Self;
 }
 
 /// A `PacketContext` encapsulates two things:
@@ -25,18 +25,15 @@ pub trait PacketType: Clone {
 /// and it holds a [`PacketState`]. Through [`Hook`] executions, it
 /// will undergo several successive state transitions.
 
-pub struct PacketContext<T : PacketType, U: PacketType> {
-
+pub struct PacketContext<T: PacketType, U: PacketType> {
     time: DateTime<Utc>,
     id: Uuid,
     state: PacketState,
-    input_packet : T,
-    output_packet : U
-
+    input_packet: T,
+    output_packet: U,
 }
 
 impl<T: PacketType, U: PacketType> PacketContext<T, U> {
-
     /// Returns the [`Uuid`] of the PacketContext
     ///
     /// # Examples:
@@ -133,7 +130,7 @@ impl<T: PacketType, U: PacketType> PacketContext<T, U> {
 
     /// Converts the contained output packet
     /// to its raw bytes representation
-    pub fn output_to_raw(&self) -> &[u8]{
+    pub fn output_to_raw(&self) -> &[u8] {
         self.output_packet.to_raw_bytes()
     }
 
@@ -148,14 +145,19 @@ impl<T: PacketType, U: PacketType> PacketContext<T, U> {
 
     /// Returns the current lifetime of
     /// the [`PacketContext`], as a [`Duration`]
-    pub fn lifetime(&self) -> Duration{
+    pub fn lifetime(&self) -> Duration {
         Utc::now() - self.time
     }
-
 }
 
 impl<T: PacketType, U: PacketType> From<T> for PacketContext<T, U> {
     fn from(value: T) -> Self {
-        Self { time: Utc::now(), id: Uuid::new_v4(), state: PacketState::Received, input_packet: value, output_packet: U::empty() }
+        Self {
+            time: Utc::now(),
+            id: Uuid::new_v4(),
+            state: PacketState::Received,
+            input_packet: value,
+            output_packet: U::empty(),
+        }
     }
 }

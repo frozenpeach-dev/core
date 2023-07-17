@@ -9,6 +9,11 @@ use std::{
 struct TypeIdHash(u64);
 
 impl Hasher for TypeIdHash {
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
     fn write(&mut self, _: &[u8]) {
         unreachable!("TypeId calls write_u64");
     }
@@ -16,11 +21,6 @@ impl Hasher for TypeIdHash {
     #[inline]
     fn write_u64(&mut self, id: u64) {
         self.0 = id;
-    }
-
-    #[inline]
-    fn finish(&self) -> u64 {
-        self.0
     }
 }
 
@@ -47,7 +47,6 @@ impl TypeMap {
                     .ok()
                     .map(|x| *x)
             })
-
     }
 
     pub fn get<T: Send + Sync + 'static>(&self) -> Option<&T> {
