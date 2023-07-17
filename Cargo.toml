@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mac_address = "0"
+mac_address = "1"
 chrono = "0.4.24"
-itertools = "0.10.5"
+itertools = "0.11"
 enum-iterator = "1.4.0"
 nohash-hasher = "0.2.0"
 tokio-test = "0.4.2"
@@ -30,4 +30,4 @@ features = [
 ]
 
 [dependencies.derive_data]
-path = "../fp_derive/"
+path = "proc_macros"
