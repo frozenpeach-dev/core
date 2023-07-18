@@ -1,12 +1,11 @@
 extern crate proc_macro;
 
-use proc_macro::{TokenStream, Ident};
-use syn::{parse_macro_input, DeriveInput, Data};
+use proc_macro::{Ident, TokenStream};
 use quote::quote;
-
+use syn::{parse_macro_input, Data, DeriveInput};
 
 #[proc_macro_derive(Storable)]
-pub fn derive_storable(input : TokenStream) -> TokenStream{
+pub fn derive_storable(input: TokenStream) -> TokenStream {
     let parsed_input: DeriveInput = parse_macro_input!(input);
     let data = parsed_input.data;
     let name = parsed_input.ident;
@@ -93,9 +92,7 @@ pub fn derive_storable(input : TokenStream) -> TokenStream{
             };
 
             TokenStream::from(token)
-
-        },
-        _ => panic!("Not yet implemented for this type...")
+        }
+        _ => panic!("Not yet implemented for this type..."),
     }
-
 }
