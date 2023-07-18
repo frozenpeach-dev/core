@@ -15,14 +15,22 @@ env:
 
 jobs:
   rustfmt:
-    runs-on: self-hosted 
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt
+
       - uses: mbrobbel/rustfmt-check@master
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-  
+
   clippy:
     name: clippy
     runs-on: self-hosted
