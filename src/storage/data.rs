@@ -543,5 +543,4 @@ mod test {
         .await
         .unwrap();
     }
-
-  }
+}
