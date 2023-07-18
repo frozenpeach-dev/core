@@ -29,5 +29,8 @@ features = [
      "macro-diagnostics",
 ]
 
+[lib]
+doctest = false
+
 [dependencies.derive_data]
 path = "proc_macros"
