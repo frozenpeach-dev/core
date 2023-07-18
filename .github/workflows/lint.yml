@@ -15,29 +15,17 @@ env:
 
 jobs:
   rustfmt:
-    name: rustfmt
-    runs-on: ubuntu-latest
+    runs-on: self-hosted 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v2
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: mbrobbel/rustfmt-check@master
         with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-          components: rustfmt
-
-      - name: Run rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check --verbose
+          token: ${{ secrets.GITHUB_TOKEN }}
   
   clippy:
     name: clippy
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout source code
         uses: actions/checkout@master
