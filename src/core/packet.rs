@@ -5,7 +5,7 @@
 //! [`PacketContext`], which will be enriched by the
 //! [`Hook`] to create a valid output packet.
 
-use chrono::{DateTime, Duration, Utc};
+use std::time::{Duration, SystemTime};
 use uuid::Uuid;
 
 use super::state::PacketState;
@@ -26,7 +26,7 @@ pub trait PacketType: Clone {
 /// will undergo several successive state transitions.
 
 pub struct PacketContext<T: PacketType, U: PacketType> {
-    time: DateTime<Utc>,
+    time: SystemTime,
     id: Uuid,
     state: PacketState,
     input_packet: T,
@@ -146,14 +146,14 @@ impl<T: PacketType, U: PacketType> PacketContext<T, U> {
     /// Returns the current lifetime of
     /// the [`PacketContext`], as a [`Duration`]
     pub fn lifetime(&self) -> Duration {
-        Utc::now() - self.time
+        SystemTime::now().duration_since(self.time).unwrap()
     }
 }
 
 impl<T: PacketType, U: PacketType> From<T> for PacketContext<T, U> {
     fn from(value: T) -> Self {
         Self {
-            time: Utc::now(),
+            time: SystemTime::now(),
             id: Uuid::new_v4(),
             state: PacketState::Received,
             input_packet: value,

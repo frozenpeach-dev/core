@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 mac_address = "1"
-chrono = "0.4.24"
+time = { version = "0.3", features = ["formatting"] }
 itertools = "0.11"
 enum-iterator = "1.4.0"
 nohash-hasher = "0.2.0"
