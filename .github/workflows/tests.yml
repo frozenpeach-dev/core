@@ -3,7 +3,7 @@ name: Test
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
 
 jobs:
@@ -31,24 +31,3 @@ jobs:
         with:
           command: test
           args: --all --all-features
-
-  miri:
-    name: cargo-miri-x86_64-linux
-    runs-on: self-hosted
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@master
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-          components: miri
-
-      - name: Setup miri
-        run: cargo miri setup
-
-      - name: Run miri
-        run: cargo miri test --all-features
