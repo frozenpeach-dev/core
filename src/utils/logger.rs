@@ -1,6 +1,16 @@
 use colored::*;
 use log::{Level, LevelFilter};
 use std::fs;
+use time::OffsetDateTime;
+
+pub fn format_time<T>(dt: T) -> String
+where
+    T: Into<OffsetDateTime>,
+{
+    dt.into()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap()
+}
 
 pub fn init_logger(app_name: impl AsRef<str>, verbosity: u64) -> Result<(), fern::InitError> {
     let log_root = format_args!("log/{}", app_name.as_ref()).to_string();
@@ -11,7 +21,7 @@ pub fn init_logger(app_name: impl AsRef<str>, verbosity: u64) -> Result<(), fern
         .format(|out, message, record| {
             out.finish(format_args!(
                 "{} [{}] [{}] {}",
-                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S"),
+                format_time(std::time::SystemTime::now()),
                 match record.level() {
                     Level::Error => format!("{}", record.level()).red(),
                     Level::Warn => format!("{}", record.level()).yellow(),
@@ -37,7 +47,9 @@ pub fn init_logger(app_name: impl AsRef<str>, verbosity: u64) -> Result<(), fern
         "{}/{}.{}",
         log_root,
         app_name.as_ref(),
-        chrono::Utc::now().format("%Y_%m_%d")
+        std::convert::Into::<OffsetDateTime>::into(std::time::SystemTime::now())
+            .format(&time::format_description::parse("[year]_[month]_[day]").unwrap())
+            .unwrap()
     );
 
     let out_file_dispatch = fern::Dispatch::new()
@@ -52,7 +64,7 @@ pub fn init_logger(app_name: impl AsRef<str>, verbosity: u64) -> Result<(), fern
         .format(|out, message, record| {
             out.finish(format_args!(
                 "{} [{}] [{}] {}",
-                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S"),
+                format_time(std::time::SystemTime::now()),
                 record.level(),
                 record.target(),
                 message
