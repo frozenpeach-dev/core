@@ -7,14 +7,14 @@ edition = "2021"
 
 [dependencies]
 mac_address = "1"
-chrono = { version = "0.4", default-features = false, alloc = [], libc = [], std = [], clock = ["std", "winapi", "iana-time-zone"], wasmbind = ["wasm-bindgen", "js-sys"], unstable-locales = ["pure-rust-locales", "alloc"], __internal_bench = ["criterion"], __doctest = [] }
+chrono = "0.4.24"
 itertools = "0.11"
 enum-iterator = "1.4.0"
 nohash-hasher = "0.2.0"
 tokio-test = "0.4.2"
 mysql = "*"
 tokio = { version = "1.27.0", features = ["full"] }
-syn = "2"
+syn = "0"
 colored = "2.0.0"
 fern = "0.6.2"
 log = "0.4.17"
